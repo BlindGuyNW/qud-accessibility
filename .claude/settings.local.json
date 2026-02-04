@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(findstr:*)",
+      "Bash(dir \"C:\\\\git\\\\coq-access\\\\bin\" /s /b)",
+      "Bash(git init:*)"
+    ]
+  }
+}
