@@ -1,0 +1,16 @@
+# Decompiled game source (reference only, not part of the mod)
+decompiled/
+
+# Build output
+bin/
+obj/
+
+# IDE
+.vs/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store

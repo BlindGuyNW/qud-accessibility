@@ -1,0 +1,8 @@
+{
+  "id": "QudAccessibility",
+  "title": "Qud Accessibility",
+  "description": "Vocalizes menus, character creation, and popups via NVDA or SAPI TTS.",
+  "version": "0.1.0",
+  "author": "coq-access",
+  "dependencies": []
+}
