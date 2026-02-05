@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Text;
 using HarmonyLib;
 using Qud.UI;
 using XRL.UI;
@@ -34,6 +36,7 @@ namespace QudAccessibility
             _lastSide = -1;
             _lastTrackedGo = null;
             _lastTrackedCount = -1;
+            ScreenReader.SetBlockProvider(BuildTradeBlocks);
         }
 
         /// <summary>
@@ -173,6 +176,56 @@ namespace QudAccessibility
                 _lastTrackedGo = tld.go;
                 _lastTrackedCount = currentSelected;
             }
+        }
+
+        // -----------------------------------------------------------------
+        // Trade screen block provider for F3/F4 navigation
+        // -----------------------------------------------------------------
+        private static List<ScreenReader.ContentBlock> BuildTradeBlocks()
+        {
+            var instance = SingletonWindowBase<TradeScreen>.instance;
+            if (instance == null || !instance.isActiveAndEnabled)
+                return null;
+
+            var blocks = new List<ScreenReader.ContentBlock>();
+
+            // Block 1: Trade summary
+            var sumSb = new StringBuilder();
+            if (instance.mode == TradeUI.TradeScreenMode.Trade)
+            {
+                string total0 = TradeUI.FormatPrice(instance.Totals[0], TradeScreen.CostMultiple);
+                string total1 = TradeUI.FormatPrice(instance.Totals[1], TradeScreen.CostMultiple);
+                int traderDrams = TradeScreen.Trader?.GetFreeDrams() ?? 0;
+                int playerDrams = XRL.The.Player?.GetFreeDrams() ?? 0;
+                sumSb.Append("Trader offers " + total0 + " drams, you offer " + total1 + " drams. ");
+                sumSb.Append("Trader has " + traderDrams + " free drams, you have " + playerDrams + " free drams.");
+            }
+            else
+            {
+                sumSb.Append("Container mode");
+            }
+            blocks.Add(new ScreenReader.ContentBlock { Title = "Trade Summary", Body = sumSb.ToString() });
+
+            // Block 2: Commands
+            var cmdSb = new StringBuilder();
+            AppendCommand(cmdSb, "CmdTradeOffer", "offer trade");
+            AppendCommand(cmdSb, "CmdTradeAdd", "add one");
+            AppendCommand(cmdSb, "CmdTradeRemove", "remove one");
+            AppendCommand(cmdSb, "CmdTradeAllItems", "toggle item");
+            AppendCommand(cmdSb, "CmdVendorActions", "vendor actions");
+            AppendCommand(cmdSb, "Cancel", "close");
+            blocks.Add(new ScreenReader.ContentBlock { Title = "Commands", Body = cmdSb.ToString() });
+
+            return blocks;
+        }
+
+        private static void AppendCommand(StringBuilder sb, string command, string label)
+        {
+            string key = ControlManager.getCommandInputDescription(command, mapGlyphs: false);
+            if (string.IsNullOrEmpty(key))
+                return;
+            if (sb.Length > 0) sb.Append(", ");
+            sb.Append(key + " " + label);
         }
     }
 }
