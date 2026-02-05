@@ -153,13 +153,14 @@ namespace QudAccessibility
                     // Only speak if position is valid (we're in look mode)
                     if (cx != int.MinValue)
                     {
+                        string coords = $"({cx}, {cy})";
                         if (currentTarget != null)
                         {
                             string name = currentTarget.GetDisplayName(Stripped: true);
                             string clean = Speech.Clean(name);
                             if (!string.IsNullOrEmpty(clean))
                             {
-                                Speech.SayIfNew(clean);
+                                Speech.SayIfNew($"{clean} {coords}");
                                 var info = Look.GenerateTooltipInformation(currentTarget);
                                 string full = info.DisplayName ?? "";
                                 if (!string.IsNullOrEmpty(info.LongDescription))
@@ -169,7 +170,7 @@ namespace QudAccessibility
                         }
                         else
                         {
-                            Speech.SayIfNew("empty");
+                            Speech.SayIfNew($"empty {coords}");
                             SetScreenContent("empty");
                         }
                     }
