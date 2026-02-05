@@ -74,7 +74,7 @@ namespace QudAccessibility
         /// <summary>
         /// Strip color markup, sanitize decorative characters, return clean text.
         /// </summary>
-        private static string Clean(string text)
+        internal static string Clean(string text)
         {
             if (string.IsNullOrEmpty(text))
                 return null;
@@ -120,6 +120,20 @@ namespace QudAccessibility
             WindowsTTS.Speak(clean);
             _lastSpoken = clean;
             _prioritySpeaking = true;
+        }
+
+        /// <summary>
+        /// Speak text without stopping current speech. Used for message log
+        /// entries that should queue behind whatever is currently playing.
+        /// </summary>
+        public static void Queue(string text)
+        {
+            string clean = Clean(text);
+            if (clean == null)
+                return;
+
+            EnsureInitialized();
+            WindowsTTS.Speak(clean);
         }
 
         /// <summary>
