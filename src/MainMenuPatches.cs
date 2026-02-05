@@ -1,5 +1,6 @@
 using System.Reflection;
 using HarmonyLib;
+using Qud.API;
 using Qud.UI;
 using XRL.Rules;
 using XRL.UI;
@@ -106,6 +107,30 @@ namespace QudAccessibility
             string announcement = first != null
                 ? "Keybinds. " + first
                 : "Keybinds";
+            ScreenReader.SetScreenContent(announcement);
+            Speech.Interrupt(announcement);
+        }
+
+        // -----------------------------------------------------------------
+        // Save/Continue screen: announce title + first save on open
+        // -----------------------------------------------------------------
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(SaveManagement), nameof(SaveManagement.Show))]
+        public static void SaveManagement_Show_Postfix(SaveManagement __instance)
+        {
+            string first = null;
+            var data = __instance.savesScroller?.scrollContext?.data;
+            if (data != null && data.Count > 0)
+            {
+                int pos = __instance.savesScroller.selectedPosition;
+                if (pos >= 0 && pos < data.Count)
+                    first = GetElementLabel(data[pos]);
+            }
+
+            string announcement = first != null
+                ? "Continue. " + first
+                : "Continue";
             ScreenReader.SetScreenContent(announcement);
             Speech.Interrupt(announcement);
         }
@@ -230,6 +255,17 @@ namespace QudAccessibility
                     return itemName + colorSuffix + ", " + weight + " pounds";
                 }
                 return null;
+            }
+
+            if (element is SaveInfoData saveData)
+            {
+                var sg = saveData.SaveGame;
+                if (sg == null) return null;
+                string name = Speech.Clean(sg.Name ?? "");
+                string desc = Speech.Clean(sg.Description ?? "");
+                string location = Speech.Clean(sg.Info ?? "");
+                string saved = sg.SaveTime ?? "";
+                return name + ", " + desc + ". " + location + ". Last saved " + saved;
             }
 
             if (element is KeybindDataRow keybindRow)
