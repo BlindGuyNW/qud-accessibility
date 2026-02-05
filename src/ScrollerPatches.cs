@@ -6,6 +6,7 @@ using XRL.Rules;
 using XRL.UI;
 using XRL.UI.Framework;
 using XRL.World;
+using XRL.World.Parts;
 using XRL.World.Parts.Mutation;
 
 namespace QudAccessibility
@@ -110,6 +111,42 @@ namespace QudAccessibility
             string announcement = first != null
                 ? "Keybinds. " + first
                 : "Keybinds";
+            ScreenReader.SetScreenContent(announcement);
+            Speech.Interrupt(announcement);
+        }
+
+        // -----------------------------------------------------------------
+        // Ability manager screen: announce title on open
+        // -----------------------------------------------------------------
+        private static bool _abilityManagerFirstShow;
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(AbilityManagerScreen), "showScreen")]
+        public static void AbilityManagerScreen_showScreen_Prefix()
+        {
+            _abilityManagerFirstShow = true;
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(AbilityManagerScreen), nameof(AbilityManagerScreen.BeforeShow))]
+        public static void AbilityManagerScreen_BeforeShow_Postfix(AbilityManagerScreen __instance)
+        {
+            if (!_abilityManagerFirstShow)
+                return;
+            _abilityManagerFirstShow = false;
+
+            string first = null;
+            var data = __instance.leftSideScroller?.scrollContext?.data;
+            if (data != null && data.Count > 0)
+            {
+                int pos = __instance.leftSideScroller.selectedPosition;
+                if (pos >= 0 && pos < data.Count)
+                    first = GetElementLabel(data[pos]);
+            }
+
+            string announcement = first != null
+                ? "Abilities. " + first
+                : "Abilities";
             ScreenReader.SetScreenContent(announcement);
             Speech.Interrupt(announcement);
         }
@@ -348,9 +385,16 @@ namespace QudAccessibility
                 if (abilData.ability != null)
                 {
                     string abilName = Speech.Clean(abilData.ability.DisplayName ?? "");
+                    string label = abilName;
                     if (abilData.ability.Toggleable && abilData.ability.ToggleState)
-                        return abilName + ", active";
-                    return abilName;
+                        label += ", active";
+                    if (abilData.ability.Cooldown > 0)
+                        label += ", " + abilData.ability.CooldownDescription + " cooldown";
+                    if (!string.IsNullOrEmpty(abilData.ability.Class))
+                        label += ". Type: " + abilData.ability.Class;
+                    if (!string.IsNullOrEmpty(abilData.ability.Description))
+                        label += ". " + Speech.Clean(abilData.ability.Description);
+                    return label;
                 }
                 return null;
             }
@@ -360,7 +404,11 @@ namespace QudAccessibility
             if (element is CharacterAttributeLineData attrData)
             {
                 if (attrData.stat == "CP")
-                    return "Compute Power: " + CharacterStatusScreen.CP;
+                    // CP isn't a real Statistic (attrData.data is null), so there's no
+                    // GetHelpText() to call. The game itself hardcodes this string in
+                    // CharacterStatusScreen.HandleHighlightAttribute — no other source exists.
+                    return "Compute Power: " + CharacterStatusScreen.CP
+                        + ". Your Compute Power scales the bonuses of certain compute-enabled items and cybernetic implants. Your base compute power is 0.";
                 if (attrData.data == null)
                     return attrData.stat ?? "";
                 string attrName = Statistic.GetStatCapitalizedDisplayName(attrData.data.Name);
@@ -379,36 +427,66 @@ namespace QudAccessibility
                 string modifier = "";
                 if (attrData.category == CharacterAttributeLineData.Category.primary)
                     modifier = " [" + (attrData.data.Modifier >= 0 ? "+" : "") + attrData.data.Modifier + "]";
-                return attrName + ": " + value + modifier;
+                string label = attrName + ": " + value + modifier;
+                string helpText = attrData.data.GetHelpText();
+                if (!string.IsNullOrEmpty(helpText))
+                    label += ". " + Speech.Clean(helpText);
+                return label;
             }
 
             if (element is CharacterMutationLineData mutData)
             {
                 if (mutData.mutation == null) return null;
                 string mutName = Speech.Clean(mutData.mutation.GetDisplayName());
+                string label = mutName;
                 if (mutData.mutation.ShouldShowLevel())
-                    return mutName + " (" + mutData.mutation.GetUIDisplayLevel() + ")";
-                return mutName;
+                    label += " (" + mutData.mutation.GetUIDisplayLevel() + ")";
+                string desc = mutData.mutation.GetDescription();
+                if (!string.IsNullOrEmpty(desc))
+                    label += ". " + Speech.Clean(desc);
+                string levelText = mutData.mutation.GetLevelText(mutData.mutation.Level);
+                if (!string.IsNullOrEmpty(levelText))
+                    label += ". " + Speech.Clean(levelText);
+                return label;
             }
 
             if (element is CharacterEffectLineData effectData)
             {
-                return Speech.Clean(effectData.effect?.GetDescription() ?? "");
+                if (effectData.effect == null) return null;
+                string label = Speech.Clean(effectData.effect.GetDescription() ?? "");
+                string details = effectData.effect.GetDetails();
+                if (!string.IsNullOrEmpty(details) && details != "[effect details]")
+                {
+                    var go = StatusScreensScreen.GO;
+                    details = Campfire.ProcessEffectDescription(details, go);
+                    label += ". " + Speech.Clean(details);
+                }
+                return label;
             }
 
             if (element is SkillsAndPowersLineData spData)
             {
                 if (spData.entry == null) return null;
                 string spName = spData.entry.Name;
+                string label = spName;
                 if (spData.go != null)
                 {
                     var learned = spData.entry.IsLearned(spData.go);
                     string status = learned == SPNode.LearnedStatus.Learned ? "Learned"
                                   : learned == SPNode.LearnedStatus.Partial ? "Partially Learned"
                                   : "Unlearned";
-                    return spName + ", " + status;
+                    label += ", " + status;
+                    if (learned != SPNode.LearnedStatus.Learned)
+                    {
+                        int cost = spData.entry.Skill != null ? spData.entry.Skill.Cost : spData.entry.Power?.Cost ?? 0;
+                        if (cost > 0)
+                            label += ", " + cost + " SP";
+                    }
                 }
-                return spName;
+                string desc = spData.entry.Description;
+                if (!string.IsNullOrEmpty(desc))
+                    label += ". " + Speech.Clean(desc);
+                return label;
             }
 
             if (element is QuestsLineData questData)
