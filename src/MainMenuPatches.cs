@@ -135,6 +135,20 @@ namespace QudAccessibility
         }
 
         // -----------------------------------------------------------------
+        // Pick item screen: announce title when opened (e.g. "g" to get)
+        // -----------------------------------------------------------------
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(PickGameObjectScreen), "showScreen")]
+        public static void PickGameObjectScreen_showScreen_Prefix(string Title)
+        {
+            if (!string.IsNullOrEmpty(Title))
+            {
+                Speech.Interrupt(Speech.Clean(Title));
+            }
+        }
+
+        // -----------------------------------------------------------------
         // Character sheet: announce tab name on switch
         // -----------------------------------------------------------------
 
@@ -197,6 +211,22 @@ namespace QudAccessibility
                 string display = Speech.Clean(invData.displayName ?? "");
                 int weight = invData.go?.Weight ?? 0;
                 return display + ", " + weight + " pounds";
+            }
+
+            if (element is PickGameObjectLineData pickData)
+            {
+                if (pickData.type == PickGameObjectLineDataType.Category)
+                {
+                    string catName = Speech.Clean(pickData.category ?? "");
+                    return catName + ", " + (pickData.collapsed ? "collapsed" : "expanded");
+                }
+                if (pickData.go != null)
+                {
+                    string itemName = Speech.Clean(pickData.go.DisplayName ?? "");
+                    int weight = pickData.go.Weight;
+                    return itemName + ", " + weight + " pounds";
+                }
+                return null;
             }
 
             if (element is KeybindDataRow keybindRow)
