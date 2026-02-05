@@ -53,6 +53,14 @@ namespace QudAccessibility
                     continue;
                 }
 
+                // Replace CP437 arrow control characters and Unicode arrow symbols
+                // with readable text. The game sets arrow key display names to
+                // CP437 control chars (\u0018-\u001b) which are silent to screen readers.
+                if (c == '\u0018' || c == '\u2191') { sb.Append("Up Arrow"); continue; }
+                if (c == '\u0019' || c == '\u2193') { sb.Append("Down Arrow"); continue; }
+                if (c == '\u001a' || c == '\u2192') { sb.Append("Right Arrow"); continue; }
+                if (c == '\u001b' || c == '\u2190') { sb.Append("Left Arrow"); continue; }
+
                 // Strip box-drawing characters (U+2500–U+257F)
                 if (c >= '\u2500' && c <= '\u257F')
                     continue;

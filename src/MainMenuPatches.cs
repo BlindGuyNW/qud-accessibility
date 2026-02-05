@@ -1,5 +1,7 @@
+using System.Reflection;
 using HarmonyLib;
 using Qud.UI;
+using XRL.UI;
 using XRL.UI.Framework;
 
 namespace QudAccessibility
@@ -64,6 +66,45 @@ namespace QudAccessibility
             {
                 Speech.SayIfNew(label);
             }
+        }
+
+        // -----------------------------------------------------------------
+        // Keybinds screen: announce title on first show
+        // -----------------------------------------------------------------
+        private static bool _keybindsFirstShow;
+        private static FieldInfo _selectFirstField;
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(KeybindsScreen), nameof(KeybindsScreen.Show))]
+        public static void KeybindsScreen_Show_Prefix(KeybindsScreen __instance)
+        {
+            if (_selectFirstField == null)
+                _selectFirstField = typeof(KeybindsScreen).GetField("SelectFirst",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            _keybindsFirstShow = (bool)(_selectFirstField?.GetValue(__instance) ?? false);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(KeybindsScreen), nameof(KeybindsScreen.Show))]
+        public static void KeybindsScreen_Show_Postfix(KeybindsScreen __instance)
+        {
+            if (!_keybindsFirstShow)
+                return;
+
+            string first = null;
+            var data = __instance.keybindsScroller?.scrollContext?.data;
+            if (data != null)
+            {
+                int pos = __instance.keybindsScroller.selectedPosition;
+                if (pos >= 0 && pos < data.Count)
+                    first = GetElementLabel(data[pos]);
+            }
+
+            string announcement = first != null
+                ? "Keybinds. " + first
+                : "Keybinds";
+            ScreenReader.SetScreenContent(announcement);
+            Speech.Interrupt(announcement);
         }
 
         /// <summary>
@@ -133,6 +174,28 @@ namespace QudAccessibility
                 string display = Speech.Clean(invData.displayName ?? "");
                 int weight = invData.go?.Weight ?? 0;
                 return display + ", " + weight + " pounds";
+            }
+
+            if (element is KeybindDataRow keybindRow)
+            {
+                string label = keybindRow.KeyDescription ?? keybindRow.KeyId ?? "";
+                string binds = "";
+                string sep = "";
+                foreach (var b in new[] { keybindRow.Bind1, keybindRow.Bind2, keybindRow.Bind3, keybindRow.Bind4 })
+                {
+                    if (!string.IsNullOrEmpty(b))
+                    {
+                        binds += sep + b;
+                        sep = ", ";
+                    }
+                }
+                return binds.Length > 0 ? label + ": " + binds : label + ": unbound";
+            }
+
+            if (element is KeybindCategoryRow catRow)
+            {
+                string state = catRow.Collapsed ? "collapsed" : "expanded";
+                return catRow.CategoryDescription + ", " + state;
             }
 
             if (element is PrefixMenuOption prefixOpt)
