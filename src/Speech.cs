@@ -99,6 +99,49 @@ namespace QudAccessibility
         }
 
         /// <summary>
+        /// Map a Qud color char to a human-readable color name.
+        /// Returns null for default gray (y), black (k/K), and unknown chars.
+        /// </summary>
+        internal static string GetColorName(char colorChar)
+        {
+            switch (colorChar)
+            {
+                case 'Y': return "white";
+                case 'W': return "gold";
+                case 'w': return "brown";
+                case 'G': return "green";
+                case 'g': return "dark green";
+                case 'C': return "cyan";
+                case 'c': return "dark cyan";
+                case 'R': return "red";
+                case 'r': return "dark red";
+                case 'M': return "magenta";
+                case 'm': return "dark magenta";
+                case 'B': return "blue";
+                case 'b': return "dark blue";
+                case 'O': return "orange";
+                case 'o': return "dark orange";
+                default: return null;
+            }
+        }
+
+        /// <summary>
+        /// Get a color suffix string for a game object, e.g. " (gold)" or "".
+        /// Skips default gray and null objects. Uses DisplayNameColor for accuracy.
+        /// Must fully qualify XRL.World.GameObject to avoid UnityEngine ambiguity.
+        /// </summary>
+        internal static string GetObjectColorSuffix(XRL.World.GameObject go)
+        {
+            if (go == null)
+                return "";
+            string colorStr = go.DisplayNameColor;
+            if (string.IsNullOrEmpty(colorStr))
+                return "";
+            string name = GetColorName(colorStr[0]);
+            return name != null ? " (" + name + ")" : "";
+        }
+
+        /// <summary>
         /// Strip color markup and speak the text.
         /// </summary>
         public static void Say(string text)

@@ -156,11 +156,12 @@ namespace QudAccessibility
                         string coords = $"({cx}, {cy})";
                         if (currentTarget != null)
                         {
+                            string colorSuffix = Speech.GetObjectColorSuffix(currentTarget);
                             string name = currentTarget.GetDisplayName(Stripped: true);
                             string clean = Speech.Clean(name);
                             if (!string.IsNullOrEmpty(clean))
                             {
-                                Speech.SayIfNew($"{clean} {coords}");
+                                Speech.SayIfNew($"{clean}{colorSuffix} {coords}");
                                 var info = Look.GenerateTooltipInformation(currentTarget);
                                 string full = info.DisplayName ?? "";
                                 if (!string.IsNullOrEmpty(info.LongDescription))
@@ -341,6 +342,7 @@ namespace QudAccessibility
                         if (!MatchesCategory(obj, category))
                             continue;
 
+                        string colorSuffix = Speech.GetObjectColorSuffix(obj);
                         string name = Speech.Clean(
                             obj.GetDisplayName(Stripped: true));
                         if (string.IsNullOrEmpty(name))
@@ -349,7 +351,7 @@ namespace QudAccessibility
                         _scanEntries.Add(new ScanEntry
                         {
                             Object = obj,
-                            Name = name
+                            Name = name + colorSuffix
                         });
                     }
                 }

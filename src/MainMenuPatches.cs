@@ -197,8 +197,9 @@ namespace QudAccessibility
                 if (bp.Primary)
                     partName = "Primary " + partName;
                 var equipped = equipData.showCybernetics ? bp.Cybernetics : bp.Equipped;
+                string colorSuffix = Speech.GetObjectColorSuffix(equipped);
                 string itemName = equipped != null ? Speech.Clean(equipped.DisplayName) : "empty";
-                return partName + ": " + itemName;
+                return partName + ": " + itemName + colorSuffix;
             }
 
             if (element is InventoryLineData invData)
@@ -208,9 +209,10 @@ namespace QudAccessibility
                     string name = Speech.Clean(invData.categoryName ?? "");
                     return name + ", " + invData.categoryAmount + " items, " + invData.categoryWeight + " pounds";
                 }
+                string colorSuffix = Speech.GetObjectColorSuffix(invData.go);
                 string display = Speech.Clean(invData.displayName ?? "");
                 int weight = invData.go?.Weight ?? 0;
-                return display + ", " + weight + " pounds";
+                return display + colorSuffix + ", " + weight + " pounds";
             }
 
             if (element is PickGameObjectLineData pickData)
@@ -222,9 +224,10 @@ namespace QudAccessibility
                 }
                 if (pickData.go != null)
                 {
+                    string colorSuffix = Speech.GetObjectColorSuffix(pickData.go);
                     string itemName = Speech.Clean(pickData.go.DisplayName ?? "");
                     int weight = pickData.go.Weight;
-                    return itemName + ", " + weight + " pounds";
+                    return itemName + colorSuffix + ", " + weight + " pounds";
                 }
                 return null;
             }
