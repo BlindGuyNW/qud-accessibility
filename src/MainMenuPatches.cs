@@ -1,8 +1,11 @@
 using System.Reflection;
 using HarmonyLib;
 using Qud.UI;
+using XRL.Rules;
 using XRL.UI;
 using XRL.UI.Framework;
+using XRL.World;
+using XRL.World.Parts.Mutation;
 
 namespace QudAccessibility
 {
@@ -131,6 +134,26 @@ namespace QudAccessibility
             }
         }
 
+        // -----------------------------------------------------------------
+        // Character sheet: announce tab name on switch
+        // -----------------------------------------------------------------
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(StatusScreensScreen), nameof(StatusScreensScreen.UpdateActiveScreen))]
+        public static void StatusScreensScreen_UpdateActiveScreen_Postfix(StatusScreensScreen __instance)
+        {
+            // activeScreen is private, replicate the lookup from UpdateActiveScreen line 216-217
+            int index = __instance.CurrentScreen % __instance.Screens.Count;
+            var screen = __instance.Screens[index]?.GetComponent<IStatusScreen>();
+            string tabName = screen?.GetTabString();
+            if (!string.IsNullOrEmpty(tabName))
+            {
+                tabName = Speech.Clean(tabName);
+                Speech.Interrupt(tabName);
+                ScreenReader.SetScreenContent(tabName);
+            }
+        }
+
         /// <summary>
         /// Extract a human-readable label from any FrameworkDataElement subclass.
         /// </summary>
@@ -208,6 +231,133 @@ namespace QudAccessibility
             if (element is MenuOption menuOption)
             {
                 return menuOption.Description;
+            }
+
+            if (element is ButtonBar.ButtonBarButtonData buttonData)
+            {
+                return buttonData.label;
+            }
+
+            if (element is FilterBarCategoryButtonData filterCatData)
+            {
+                return filterCatData.category == "*All" ? "All" : filterCatData.category;
+            }
+
+            if (element is AbilityManagerLineData abilData)
+            {
+                if (abilData.category != null)
+                {
+                    string catName = Speech.Clean(abilData.category);
+                    return catName + ", " + (abilData.collapsed ? "collapsed" : "expanded");
+                }
+                if (abilData.ability != null)
+                {
+                    string abilName = Speech.Clean(abilData.ability.DisplayName ?? "");
+                    if (abilData.ability.Toggleable && abilData.ability.ToggleState)
+                        return abilName + ", active";
+                    return abilName;
+                }
+                return null;
+            }
+
+            // ----- Character sheet data types -----
+
+            if (element is CharacterAttributeLineData attrData)
+            {
+                if (attrData.stat == "CP")
+                    return "Compute Power: " + CharacterStatusScreen.CP;
+                if (attrData.data == null)
+                    return attrData.stat ?? "";
+                string attrName = Statistic.GetStatCapitalizedDisplayName(attrData.data.Name);
+                string shortName = attrData.data.GetShortDisplayName();
+                int value;
+                if (shortName == "MS")
+                    value = 200 - attrData.data.Value;
+                else if (shortName == "AV" && attrData.go != null)
+                    value = Stats.GetCombatAV(attrData.go);
+                else if (shortName == "DV" && attrData.go != null)
+                    value = Stats.GetCombatDV(attrData.go);
+                else if (shortName == "MA" && attrData.go != null)
+                    value = Stats.GetCombatMA(attrData.go);
+                else
+                    value = attrData.data.Value;
+                string modifier = "";
+                if (attrData.category == CharacterAttributeLineData.Category.primary)
+                    modifier = " [" + (attrData.data.Modifier >= 0 ? "+" : "") + attrData.data.Modifier + "]";
+                return attrName + ": " + value + modifier;
+            }
+
+            if (element is CharacterMutationLineData mutData)
+            {
+                if (mutData.mutation == null) return null;
+                string mutName = Speech.Clean(mutData.mutation.GetDisplayName());
+                if (mutData.mutation.ShouldShowLevel())
+                    return mutName + " (" + mutData.mutation.GetUIDisplayLevel() + ")";
+                return mutName;
+            }
+
+            if (element is CharacterEffectLineData effectData)
+            {
+                return Speech.Clean(effectData.effect?.GetDescription() ?? "");
+            }
+
+            if (element is SkillsAndPowersLineData spData)
+            {
+                if (spData.entry == null) return null;
+                string spName = spData.entry.Name;
+                if (spData.go != null)
+                {
+                    var learned = spData.entry.IsLearned(spData.go);
+                    string status = learned == SPNode.LearnedStatus.Learned ? "Learned"
+                                  : learned == SPNode.LearnedStatus.Partial ? "Partially Learned"
+                                  : "Unlearned";
+                    return spName + ", " + status;
+                }
+                return spName;
+            }
+
+            if (element is QuestsLineData questData)
+            {
+                if (questData.quest == null) return "No active quests";
+                string questName = Speech.Clean(questData.quest.DisplayName ?? "");
+                string questState = questData.expanded ? "expanded" : "collapsed";
+                return questName + ", " + questState;
+            }
+
+            if (element is FactionsLineData factionData)
+            {
+                string factionName = Speech.Clean(factionData.name ?? "");
+                return factionName + ", " + factionData.rep + " reputation"
+                    + ", " + (factionData.expanded ? "expanded" : "collapsed");
+            }
+
+            if (element is JournalLineData journalData)
+            {
+                if (journalData.category)
+                {
+                    string catName = Speech.Clean(journalData.categoryName ?? "");
+                    return catName + ", " + (journalData.categoryExpanded ? "expanded" : "collapsed");
+                }
+                string entryText = journalData.entry?.GetDisplayText() ?? "";
+                return Speech.Clean(entryText);
+            }
+
+            if (element is TinkeringLineData tinkerData)
+            {
+                if (tinkerData.category)
+                {
+                    string catName = Speech.Clean(tinkerData.categoryName ?? "");
+                    return catName + ", " + tinkerData.categoryCount + " items"
+                        + ", " + (tinkerData.categoryExpanded ? "expanded" : "collapsed");
+                }
+                string itemName = Speech.Clean(tinkerData.data?.DisplayName ?? "");
+                string cost = tinkerData.costString ?? "";
+                return string.IsNullOrEmpty(cost) ? itemName : itemName + ", cost: " + Speech.Clean(cost);
+            }
+
+            if (element is MessageLogLineData msgData)
+            {
+                return Speech.Clean(msgData.text ?? "");
             }
 
             // Fallback: use Description, then Id.
