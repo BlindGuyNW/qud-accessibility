@@ -355,9 +355,39 @@ namespace QudAccessibility
 
             if (element is PrefixMenuOption prefixOpt)
             {
-                string prefix = prefixOpt.Prefix ?? "";
-                string desc = prefixOpt.Description ?? "";
-                return prefix + desc;
+                // Prefix is e.g. "[ ][{{G|3}}]" (unselected, cost 3)
+                // or "[■][{{G|3}}]" (selected) or "[2][{{R|-2}}]" (2 selected)
+                // Parse the raw prefix to extract selection state and cost.
+                string raw = ConsoleLib.Console.ColorUtility.StripFormatting(
+                    prefixOpt.Prefix ?? "");
+                string selection = "not selected";
+                string cost = "";
+                // First bracket pair is selection: [ ], [■], or [N]
+                int close1 = raw.IndexOf(']');
+                if (close1 > 0)
+                {
+                    string inside = raw.Substring(1, close1 - 1).Trim();
+                    if (inside == "\u25A0" || inside == "*")
+                        selection = "selected";
+                    else if (inside.Length > 0 && inside != " " && inside != "")
+                        selection = inside + " selected";
+                    // Second bracket pair is cost
+                    int open2 = raw.IndexOf('[', close1);
+                    if (open2 >= 0)
+                    {
+                        int close2 = raw.IndexOf(']', open2);
+                        if (close2 > open2)
+                            cost = raw.Substring(open2 + 1, close2 - open2 - 1).Trim();
+                    }
+                }
+                string desc = Speech.Clean(prefixOpt.Description ?? "");
+                string label = desc;
+                if (!string.IsNullOrEmpty(cost))
+                    label += ", cost " + cost;
+                label += ", " + selection;
+                if (!string.IsNullOrEmpty(prefixOpt.LongDescription))
+                    label += ". " + Speech.Clean(prefixOpt.LongDescription);
+                return label;
             }
 
             if (element is MenuOption menuOption)
