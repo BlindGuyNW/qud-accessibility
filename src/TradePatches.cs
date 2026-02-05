@@ -184,7 +184,8 @@ namespace QudAccessibility
         private static List<ScreenReader.ContentBlock> BuildTradeBlocks()
         {
             var instance = SingletonWindowBase<TradeScreen>.instance;
-            if (instance == null || !instance.isActiveAndEnabled)
+            if (instance == null || instance.navigationContext == null
+                || !instance.navigationContext.IsActive())
                 return null;
 
             var blocks = new List<ScreenReader.ContentBlock>();

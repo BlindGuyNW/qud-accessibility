@@ -75,7 +75,14 @@ namespace QudAccessibility
 
                 string summaryText = sb.ToString();
                 ScreenReader.SetScreenContent(summaryText);
-                ScreenReader.SetBlocks(blocks);
+                var capturedWindow = summaryWindow;
+                var capturedBlocks = blocks;
+                ScreenReader.SetBlockProvider(() =>
+                {
+                    if (capturedWindow == null || !capturedWindow.isActiveAndEnabled)
+                        return null;
+                    return capturedBlocks;
+                });
 
                 if (!TutorialManager.IsActive)
                 {
