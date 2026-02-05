@@ -29,7 +29,7 @@ All mod source lives in `src/`. The `decompiled/` directory contains ~5400 decom
 ### Source Files
 
 - **Speech.cs** — Static TTS wrapper. `Say()`, `Interrupt()`, `SayIfNew()`. Strips `{{color|...}}` markup via `ConsoleLib.Console.ColorUtility.StripFormatting()` before speaking. Lazily creates the `WindowsTTS` MonoBehaviour on first use (the game only creates it when its own accessibility manager speaks).
-- **MainMenuPatches.cs** — Harmony postfixes on `MainMenu.Show()` (announces "Main Menu" + first option) and `FrameworkScroller.UpdateSelection()` (speaks any highlighted element in any scroller).
+- **ScrollerPatches.cs** — Central hub for scroller vocalization. Contains `GetElementLabel()` (extracts readable text from any `FrameworkDataElement` subclass) and postfixes for `FrameworkScroller.UpdateSelection()`, `PaperdollScroller.UpdateSelection()`, plus screen `Show()` methods (main menu, keybinds, saves, character sheet, pick items).
 - **ChargenPatches.cs** — Harmony postfixes on `EmbarkBuilderModuleWindowDescriptor.show()` (announces screen title) and `HorizontalScroller.UpdateSelection()` (speaks choice title + description).
 - **PopupPatches.cs** — Harmony prefixes on `Popup.WaitNewPopupMessage`, `NewPopupMessageAsync`, `Show`, `ShowAsync` (speaks popup title + message).
 

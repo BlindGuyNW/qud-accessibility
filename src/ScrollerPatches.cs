@@ -11,10 +11,13 @@ using XRL.World.Parts.Mutation;
 namespace QudAccessibility
 {
     /// <summary>
-    /// Harmony patches for the Main Menu to vocalize navigable elements.
+    /// Harmony patches for scrollers, menus, and screen announcements.
+    /// Contains GetElementLabel() which extracts readable text from any
+    /// FrameworkDataElement subclass, plus postfixes for FrameworkScroller,
+    /// PaperdollScroller, and various screen Show() methods.
     /// </summary>
     [HarmonyPatch]
-    public static class MainMenuPatches
+    public static class ScrollerPatches
     {
         /// <summary>
         /// After the main menu is shown, announce "Main Menu" and speak the
@@ -253,6 +256,29 @@ namespace QudAccessibility
                     string itemName = Speech.Clean(pickData.go.DisplayName ?? "");
                     int weight = pickData.go.Weight;
                     return itemName + colorSuffix + ", " + weight + " pounds";
+                }
+                return null;
+            }
+
+            if (element is TradeLineData tradeData)
+            {
+                if (tradeData.type == TradeLineDataType.Category)
+                {
+                    string catName = Speech.Clean(tradeData.category ?? "");
+                    return catName + ", " + (tradeData.collapsed ? "collapsed" : "expanded");
+                }
+                if (tradeData.go != null)
+                {
+                    string itemName = Speech.Clean(tradeData.go.DisplayName ?? "");
+                    string colorSuffix = Speech.GetObjectColorSuffix(tradeData.go);
+                    double price = TradeUI.GetValue(tradeData.go, tradeData.traderInventory);
+                    string result = itemName + colorSuffix + ", " + $"{price:0.##}" + " drams";
+                    int count = tradeData.go.Count;
+                    if (count > 1)
+                        result += ", quantity " + count;
+                    if (tradeData.numberSelected > 0)
+                        result += ", " + tradeData.numberSelected + " selected";
+                    return result;
                 }
                 return null;
             }

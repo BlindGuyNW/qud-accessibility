@@ -109,7 +109,7 @@ namespace QudAccessibility
                 return;
 
             var element = data[pos];
-            string label = MainMenuPatches.GetElementLabel(element);
+            string label = ScrollerPatches.GetElementLabel(element);
             string description = element.Description;
 
             string toSpeak = label ?? "";
@@ -166,7 +166,7 @@ namespace QudAccessibility
             if (pos < 0 || pos >= data.Count)
                 return;
 
-            string label = MainMenuPatches.GetElementLabel(data[pos]);
+            string label = ScrollerPatches.GetElementLabel(data[pos]);
             if (!string.IsNullOrEmpty(label))
             {
                 Speech.Interrupt(label);
