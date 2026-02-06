@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using Qud.API;
@@ -117,6 +119,93 @@ namespace QudAccessibility
         }
 
         // -----------------------------------------------------------------
+        // Help screen: announce title on first show, F2 content on highlight
+        // -----------------------------------------------------------------
+        private static bool _helpFirstShow;
+        private static FieldInfo _helpSelectFirstField;
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(HelpScreen), nameof(HelpScreen.Show))]
+        public static void HelpScreen_Show_Prefix(HelpScreen __instance)
+        {
+            if (_helpSelectFirstField == null)
+                _helpSelectFirstField = typeof(HelpScreen).GetField("SelectFirst",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            _helpFirstShow = (bool)(_helpSelectFirstField?.GetValue(__instance) ?? false);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(HelpScreen), nameof(HelpScreen.Show))]
+        public static void HelpScreen_Show_Postfix(HelpScreen __instance)
+        {
+            ScreenReader.SetBlockProvider(BuildHelpBlocks);
+
+            if (!_helpFirstShow)
+                return;
+
+            string first = null;
+            var data = __instance.helpScroller?.scrollContext?.data;
+            if (data != null)
+            {
+                int pos = __instance.helpScroller.selectedPosition;
+                if (pos >= 0 && pos < data.Count)
+                    first = GetElementLabel(data[pos]);
+            }
+
+            string announcement = first != null
+                ? "Help. " + first
+                : "Help";
+            ScreenReader.SetScreenContent(announcement);
+            Speech.Interrupt(announcement);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(HelpRow), nameof(HelpRow.HandleUpDown))]
+        public static void HelpRow_HandleUpDown_Postfix()
+        {
+            var evt = NavigationController.currentEvent;
+            if (evt != null && evt.handled)
+                Speech.SayIfNew("Scrolling. Press F2 or F3 for content.");
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(HelpScreen), nameof(HelpScreen.HandleHighlight))]
+        public static void HelpScreen_HandleHighlight_Postfix(FrameworkDataElement element)
+        {
+            if (element is HelpDataRow helpRow)
+            {
+                string catName = helpRow.CategoryId ?? "";
+                string helpText = helpRow.HelpText ?? "";
+                string content = catName;
+                if (!string.IsNullOrEmpty(helpText))
+                    content += ". " + Speech.Clean(helpText);
+                ScreenReader.SetScreenContent(content);
+            }
+        }
+
+        private static List<ScreenReader.ContentBlock> BuildHelpBlocks()
+        {
+            var instance = SingletonWindowBase<HelpScreen>.instance;
+            if (instance == null || !instance.globalContext.IsActive())
+                return null;
+
+            var blocks = new List<ScreenReader.ContentBlock>();
+
+            // Current selection's help text
+            var selected = instance.lastSelectedElement as HelpDataRow;
+            if (selected != null && !string.IsNullOrEmpty(selected.HelpText))
+            {
+                blocks.Add(new ScreenReader.ContentBlock
+                {
+                    Title = selected.CategoryId ?? "Help",
+                    Body = Speech.Clean(selected.HelpText)
+                });
+            }
+
+            return blocks.Count > 0 ? blocks : null;
+        }
+
+        // -----------------------------------------------------------------
         // Ability manager screen: announce title on open
         // -----------------------------------------------------------------
         private static bool _abilityManagerFirstShow;
@@ -231,6 +320,184 @@ namespace QudAccessibility
                 tabName = Speech.Clean(tabName);
                 Speech.Interrupt(tabName);
                 ScreenReader.SetScreenContent(tabName);
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // Cybernetics/Generic terminal: announce body + first option on open
+        // -----------------------------------------------------------------
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(CyberneticsTerminalScreen), nameof(CyberneticsTerminalScreen.Show))]
+        public static void CyberneticsTerminalScreen_Show_Postfix(CyberneticsTerminalScreen __instance)
+        {
+            ScreenReader.SetBlockProvider(BuildTerminalBlocks);
+
+            var data = __instance.displayScroller?.scrollContext?.data;
+            if (data == null || data.Count == 0)
+                return;
+
+            var sb = new System.Text.StringBuilder();
+
+            // Body text is the first element (OptionID == -1)
+            if (data[0] is CyberneticsTerminalLineData bodyData && bodyData.OptionID < 0)
+            {
+                string bodyText = Speech.Clean(bodyData.Text ?? "");
+                if (!string.IsNullOrEmpty(bodyText))
+                    sb.Append(bodyText);
+            }
+
+            // Announce first option
+            if (data.Count > 1 && data[1] is CyberneticsTerminalLineData firstOpt && firstOpt.OptionID >= 0)
+            {
+                string optText = Speech.Clean(firstOpt.Text ?? "");
+                if (!string.IsNullOrEmpty(optText))
+                {
+                    if (sb.Length > 0) sb.Append(". ");
+                    sb.Append(optText);
+                }
+            }
+
+            string announcement = sb.ToString();
+            if (!string.IsNullOrEmpty(announcement))
+            {
+                ScreenReader.SetScreenContent(announcement);
+                Speech.Interrupt(announcement);
+            }
+        }
+
+        private static List<ScreenReader.ContentBlock> BuildTerminalBlocks()
+        {
+            var instance = SingletonWindowBase<CyberneticsTerminalScreen>.instance;
+            if (instance == null || !instance.globalContext.IsActive())
+                return null;
+
+            var data = instance.displayScroller?.scrollContext?.data;
+            if (data == null || data.Count == 0)
+                return null;
+
+            var blocks = new List<ScreenReader.ContentBlock>();
+
+            // Body text block
+            if (data[0] is CyberneticsTerminalLineData bodyData && bodyData.OptionID < 0)
+            {
+                string bodyText = Speech.Clean(bodyData.Text ?? "");
+                if (!string.IsNullOrEmpty(bodyText))
+                    blocks.Add(new ScreenReader.ContentBlock { Title = "Terminal", Body = bodyText });
+            }
+
+            // One block per option
+            for (int i = 0; i < data.Count; i++)
+            {
+                if (data[i] is CyberneticsTerminalLineData optData && optData.OptionID >= 0)
+                {
+                    string optText = Speech.Clean(optData.Text ?? "");
+                    if (!string.IsNullOrEmpty(optText))
+                        blocks.Add(new ScreenReader.ContentBlock
+                        {
+                            Title = "Option " + (optData.OptionID + 1),
+                            Body = optText
+                        });
+                }
+            }
+
+            return blocks.Count > 0 ? blocks : null;
+        }
+
+        // -----------------------------------------------------------------
+        // Game summary (death/ending): announce name and details
+        // -----------------------------------------------------------------
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(GameSummaryScreen), nameof(GameSummaryScreen.Show))]
+        public static void GameSummaryScreen_Show_Postfix(GameSummaryScreen __instance)
+        {
+            string name = Speech.Clean(__instance.Name ?? "");
+            string details = Speech.Clean(__instance.Details ?? "");
+
+            string announcement = !string.IsNullOrEmpty(name)
+                ? "Game Summary. " + name
+                : "Game Summary";
+            Speech.Interrupt(announcement);
+
+            // F2 content includes full details
+            string screenContent = announcement;
+            if (!string.IsNullOrEmpty(details))
+                screenContent += ". " + details;
+            ScreenReader.SetScreenContent(screenContent);
+
+            ScreenReader.SetBlockProvider(BuildGameSummaryBlocks);
+        }
+
+        private static List<ScreenReader.ContentBlock> BuildGameSummaryBlocks()
+        {
+            var instance = SingletonWindowBase<GameSummaryScreen>.instance;
+            if (instance == null || instance.vertNav.disabled)
+                return null;
+
+            var blocks = new List<ScreenReader.ContentBlock>();
+
+            string name = Speech.Clean(instance.Name ?? "");
+            if (!string.IsNullOrEmpty(name))
+                blocks.Add(new ScreenReader.ContentBlock { Title = "Name", Body = name });
+
+            string details = Speech.Clean(instance.Details ?? "");
+            if (!string.IsNullOrEmpty(details))
+                blocks.Add(new ScreenReader.ContentBlock { Title = "Details", Body = details });
+
+            return blocks.Count > 0 ? blocks : null;
+        }
+
+        // -----------------------------------------------------------------
+        // Options screen: announce title on first show, F2 content on highlight
+        // -----------------------------------------------------------------
+        private static bool _optionsFirstShow;
+        private static FieldInfo _optionsSelectFirstField;
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(OptionsScreen), nameof(OptionsScreen.Show))]
+        public static void OptionsScreen_Show_Prefix(OptionsScreen __instance)
+        {
+            if (_optionsSelectFirstField == null)
+                _optionsSelectFirstField = typeof(OptionsScreen).GetField("SelectFirst",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            _optionsFirstShow = (bool)(_optionsSelectFirstField?.GetValue(__instance) ?? false);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(OptionsScreen), nameof(OptionsScreen.Show))]
+        public static void OptionsScreen_Show_Postfix(OptionsScreen __instance)
+        {
+            if (!_optionsFirstShow)
+                return;
+
+            string first = null;
+            var data = __instance.optionsScroller?.scrollContext?.data;
+            if (data != null)
+            {
+                int pos = __instance.optionsScroller.selectedPosition;
+                if (pos >= 0 && pos < data.Count)
+                    first = GetElementLabel(data[pos]);
+            }
+
+            string announcement = first != null
+                ? "Options. " + first
+                : "Options";
+            ScreenReader.SetScreenContent(announcement);
+            Speech.Interrupt(announcement);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(OptionsScreen), nameof(OptionsScreen.HandleHighlight))]
+        public static void OptionsScreen_HandleHighlight_Postfix(FrameworkDataElement element)
+        {
+            if (element is OptionsDataRow optRow)
+            {
+                string label = optRow.Title ?? "";
+                string content = label;
+                if (!string.IsNullOrEmpty(optRow.HelpText))
+                    content += ". " + Speech.Clean(optRow.HelpText);
+                ScreenReader.SetScreenContent(content);
             }
         }
 
@@ -572,6 +839,78 @@ namespace QudAccessibility
             if (element is MessageLogLineData msgData)
             {
                 return Speech.Clean(msgData.text ?? "");
+            }
+
+            // ----- Help screen -----
+
+            if (element is HelpDataRow helpRow)
+            {
+                string catName = helpRow.CategoryId ?? helpRow.Description ?? "";
+                return catName + ", " + (helpRow.Collapsed ? "collapsed" : "expanded");
+            }
+
+            // ----- Book screen -----
+            // Book text is handled by page-turn patches; suppress scroller speech.
+            if (element is BookLineData)
+            {
+                return null;
+            }
+
+            // ----- Cybernetics/Generic terminal -----
+
+            if (element is CyberneticsTerminalLineData termData)
+            {
+                // Body text (OptionID == -1) is too long for navigation speech
+                if (termData.OptionID < 0)
+                    return null;
+                return Speech.Clean(termData.Text ?? "");
+            }
+
+            // ----- Options screen -----
+            // OptionsCategoryRow must come before OptionsDataRow (inheritance)
+
+            if (element is OptionsCategoryRow optCat)
+            {
+                string catTitle = optCat.Title ?? optCat.CategoryId ?? "";
+                return catTitle + ", " + (optCat.categoryExpanded ? "expanded" : "collapsed");
+            }
+
+            if (element is OptionsCheckboxRow optCheck)
+            {
+                string checkTitle = optCheck.Title ?? "";
+                return checkTitle + ", " + (optCheck.Value ? "enabled" : "disabled");
+            }
+
+            if (element is OptionsSliderRow optSlider)
+            {
+                return (optSlider.Title ?? "") + ", " + optSlider.Value;
+            }
+
+            if (element is OptionsComboBoxRow optCombo)
+            {
+                string comboTitle = optCombo.Title ?? "";
+                string displayValue = optCombo.Value ?? "";
+                // Map internal value to display label if display options exist
+                var vals = optCombo.Options;
+                var displayVals = optCombo.DisplayOptions;
+                if (vals != null && displayVals != null)
+                {
+                    int idx = Array.IndexOf(vals, optCombo.Value);
+                    if (idx >= 0 && idx < displayVals.Length)
+                        displayValue = displayVals[idx];
+                }
+                return comboTitle + ", " + displayValue;
+            }
+
+            if (element is OptionsMenuButtonRow optBtn)
+            {
+                return optBtn.Title ?? "";
+            }
+
+            // Catch-all for other OptionsDataRow subtypes
+            if (element is OptionsDataRow optRow)
+            {
+                return optRow.Title ?? "";
             }
 
             // Fallback: use Description, then Id.

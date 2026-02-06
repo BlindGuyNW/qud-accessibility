@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using UnityEngine;
 
@@ -79,8 +81,60 @@ namespace QudAccessibility
             return sb.ToString().Trim();
         }
 
+        // Cached command keys sorted by length (longest first) for ~ substitution
+        private static List<string> _commandKeys;
+
         /// <summary>
-        /// Strip color markup, sanitize decorative characters, return clean text.
+        /// Replace ~CmdFoo markers with actual key binding names.
+        /// The game uses this pattern in help text, tutorials, and tooltips.
+        /// Mirrors HelpRow.setData() substitution logic.
+        /// </summary>
+        private static string ResolveCommands(string text)
+        {
+            if (text == null || !text.Contains("~"))
+                return text;
+
+            // Handle ~Highlight specially (Alt key indicator)
+            if (text.Contains("~Highlight"))
+            {
+                if (ControlManager.activeControllerType != ControlManager.InputDeviceType.Gamepad)
+                    text = text.Replace("~Highlight", "Alt");
+                else
+                    text = text.Replace("~Highlight", "");
+            }
+
+            if (!text.Contains("~"))
+                return text;
+
+            // Build sorted key list on first use
+            if (_commandKeys == null && XRL.UI.CommandBindingManager.CommandBindings != null)
+            {
+                _commandKeys = XRL.UI.CommandBindingManager.CommandBindings.Keys.ToList();
+                _commandKeys.Sort((a, b) => b.Length - a.Length);
+            }
+
+            if (_commandKeys == null)
+                return text;
+
+            for (int i = 0; i < _commandKeys.Count; i++)
+            {
+                string key = _commandKeys[i];
+                string marker = "~" + key;
+                if (text.Contains(marker))
+                {
+                    string binding = ControlManager.getCommandInputDescription(key, mapGlyphs: false);
+                    text = text.Replace(marker, binding ?? key);
+                    if (!text.Contains("~"))
+                        break;
+                }
+            }
+
+            return text;
+        }
+
+        /// <summary>
+        /// Strip color markup, resolve command bindings, sanitize decorative
+        /// characters, return clean text.
         /// </summary>
         internal static string Clean(string text)
         {
@@ -90,6 +144,8 @@ namespace QudAccessibility
             string clean = ConsoleLib.Console.ColorUtility.StripFormatting(text);
             if (string.IsNullOrEmpty(clean))
                 return null;
+
+            clean = ResolveCommands(clean);
 
             clean = Sanitize(clean);
             if (string.IsNullOrEmpty(clean))
