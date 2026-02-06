@@ -136,6 +136,25 @@ namespace QudAccessibility
         private static int _lastLookY = int.MinValue;
 
         // -----------------------------------------------------------------
+        // Pick target mode tracking
+        // -----------------------------------------------------------------
+        internal static bool InPickTargetMode;
+        private static int _lastPickX = int.MinValue;
+        private static int _lastPickY = int.MinValue;
+
+        internal static void EnterPickTargetMode()
+        {
+            InPickTargetMode = true;
+            _lastPickX = int.MinValue;
+            _lastPickY = int.MinValue;
+        }
+
+        internal static void ExitPickTargetMode()
+        {
+            InPickTargetMode = false;
+        }
+
+        // -----------------------------------------------------------------
         // Nearby object scanner
         // -----------------------------------------------------------------
         private static readonly string[] ScanCategories =
@@ -219,8 +238,49 @@ namespace QudAccessibility
                 }
             }
 
-            // Nearby object scanner — map screen only, not in look mode
-            if (!InLookMode && XRL.The.Player?.CurrentCell != null)
+            // Pick target mode: track cursor and announce cell contents
+            if (InPickTargetMode)
+            {
+                var pickBuffer = PickTarget.Buffer;
+                if (pickBuffer != null)
+                {
+                    int cx = pickBuffer.focusPosition.x;
+                    int cy = pickBuffer.focusPosition.y;
+
+                    if (cx != _lastPickX || cy != _lastPickY)
+                    {
+                        _lastPickX = cx;
+                        _lastPickY = cy;
+
+                        var player = XRL.The.Player;
+                        if (player?.CurrentCell != null)
+                        {
+                            var zone = player.CurrentZone;
+                            if (zone != null && cx >= 0 && cx < zone.Width
+                                && cy >= 0 && cy < zone.Height)
+                            {
+                                var cell = zone.GetCell(cx, cy);
+                                string desc = GetCellDescription(cell);
+
+                                int dx = cx - player.CurrentCell.X;
+                                int dy = cy - player.CurrentCell.Y;
+                                int dist = System.Math.Max(
+                                    System.Math.Abs(dx), System.Math.Abs(dy));
+                                string position = dist == 0
+                                    ? "here"
+                                    : dist + " " + GetCompassDirection(dx, dy);
+
+                                string msg = desc + ", " + position;
+                                Speech.SayIfNew(msg);
+                                SetScreenContent(msg);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Nearby object scanner — map screen only, not in look mode or pick target
+            if (!InLookMode && !InPickTargetMode && XRL.The.Player?.CurrentCell != null)
             {
                 bool ctrl = Input.GetKey(KeyCode.LeftControl)
                          || Input.GetKey(KeyCode.RightControl);
@@ -476,6 +536,52 @@ namespace QudAccessibility
             if (door.Locked)
                 return " (locked)";
             return " (closed)";
+        }
+
+        /// <summary>
+        /// Describe the most relevant object in a cell for targeting feedback.
+        /// Prioritizes combat objects, then other visible objects, then "empty".
+        /// </summary>
+        private static string GetCellDescription(XRL.World.Cell cell)
+        {
+            if (cell == null)
+                return "empty";
+
+            XRL.World.GameObject best = null;
+            bool bestIsCombat = false;
+
+            foreach (var obj in cell.GetObjectsInCell())
+            {
+                if (obj == null)
+                    continue;
+                // Skip the player
+                if (obj == XRL.The.Player)
+                    continue;
+                // Skip invisible objects
+                if (!obj.IsVisible())
+                    continue;
+
+                bool combat = obj.HasPart("Brain") || obj.HasPart("Combat");
+                if (best == null || (combat && !bestIsCombat))
+                {
+                    best = obj;
+                    bestIsCombat = combat;
+                }
+                // If we already have a combat object, stop looking
+                if (bestIsCombat)
+                    break;
+            }
+
+            if (best == null)
+                return "empty";
+
+            string name = Speech.Clean(best.GetDisplayName(Stripped: true));
+            if (string.IsNullOrEmpty(name))
+                return "empty";
+
+            string colorSuffix = Speech.GetObjectColorSuffix(best);
+            string doorState = GetDoorStateSuffix(best);
+            return name + doorState + colorSuffix;
         }
 
         private static string GetCompassDirection(int dx, int dy)

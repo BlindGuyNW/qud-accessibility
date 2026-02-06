@@ -3,6 +3,7 @@ using Qud.UI;
 using XRL.Core;
 using XRL.UI;
 using XRL.World;
+using static XRL.UI.PickTarget;
 
 namespace QudAccessibility
 {
@@ -77,6 +78,75 @@ namespace QudAccessibility
             {
                 Speech.SayIfNew(text);
             }
+        }
+
+        // -----------------------------------------------------------------
+        // PickDirection — announce direction prompt
+        // -----------------------------------------------------------------
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(PickDirection), nameof(PickDirection.ShowPicker))]
+        public static void PickDirection_ShowPicker_Prefix(string Label)
+        {
+            string prompt = string.IsNullOrEmpty(Label)
+                ? "Select a direction"
+                : Speech.Clean(Label) + ", select a direction";
+            Speech.Interrupt(prompt);
+        }
+
+        // -----------------------------------------------------------------
+        // PickTarget.ShowPicker — announce prompt + enable cursor tracking
+        // -----------------------------------------------------------------
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(PickTarget), nameof(PickTarget.ShowPicker))]
+        public static void PickTarget_ShowPicker_Prefix(PickStyle Style, string Label)
+        {
+            string styleHint;
+            switch (Style)
+            {
+                case PickStyle.EmptyCell: styleHint = "select a cell"; break;
+                case PickStyle.Line: styleHint = "select a target line"; break;
+                case PickStyle.Cone: styleHint = "select a target cone"; break;
+                case PickStyle.Burst: styleHint = "select a target"; break;
+                case PickStyle.Circle: styleHint = "select a target area"; break;
+                default: styleHint = "select a target"; break;
+            }
+
+            string prompt = string.IsNullOrEmpty(Label)
+                ? styleHint
+                : Speech.Clean(Label) + ", " + styleHint;
+            Speech.Interrupt(prompt);
+            ScreenReader.EnterPickTargetMode();
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(PickTarget), nameof(PickTarget.ShowPicker))]
+        public static void PickTarget_ShowPicker_Postfix()
+        {
+            ScreenReader.ExitPickTargetMode();
+        }
+
+        // -----------------------------------------------------------------
+        // PickTarget.ShowFieldPicker — announce prompt + enable cursor tracking
+        // -----------------------------------------------------------------
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(PickTarget), nameof(PickTarget.ShowFieldPicker))]
+        public static void PickTarget_ShowFieldPicker_Prefix(string What)
+        {
+            string prompt = string.IsNullOrEmpty(What)
+                ? "Select placement"
+                : Speech.Clean(What) + ", select placement";
+            Speech.Interrupt(prompt);
+            ScreenReader.EnterPickTargetMode();
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(PickTarget), nameof(PickTarget.ShowFieldPicker))]
+        public static void PickTarget_ShowFieldPicker_Postfix()
+        {
+            ScreenReader.ExitPickTargetMode();
         }
     }
 }
