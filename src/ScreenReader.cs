@@ -197,11 +197,12 @@ namespace QudAccessibility
                         if (currentTarget != null)
                         {
                             string colorSuffix = Speech.GetObjectColorSuffix(currentTarget);
+                            string doorState = GetDoorStateSuffix(currentTarget);
                             string name = currentTarget.GetDisplayName(Stripped: true);
                             string clean = Speech.Clean(name);
                             if (!string.IsNullOrEmpty(clean))
                             {
-                                Speech.SayIfNew($"{clean}{colorSuffix} {coords}");
+                                Speech.SayIfNew($"{clean}{doorState}{colorSuffix} {coords}");
                                 var info = Look.GenerateTooltipInformation(currentTarget);
                                 string full = info.DisplayName ?? "";
                                 if (!string.IsNullOrEmpty(info.LongDescription))
@@ -413,7 +414,7 @@ namespace QudAccessibility
                         _scanEntries.Add(new ScanEntry
                         {
                             Object = obj,
-                            Name = name + colorSuffix
+                            Name = name + GetDoorStateSuffix(obj) + colorSuffix
                         });
                     }
                 }
@@ -459,6 +460,22 @@ namespace QudAccessibility
             return System.Math.Max(
                 System.Math.Abs(obj.CurrentCell.X - px),
                 System.Math.Abs(obj.CurrentCell.Y - py));
+        }
+
+        /// <summary>
+        /// Returns a door state suffix like " (open)", " (closed)", or " (locked)"
+        /// for objects with a Door part. Returns "" for non-doors.
+        /// </summary>
+        private static string GetDoorStateSuffix(XRL.World.GameObject obj)
+        {
+            var door = obj.GetPart<Door>();
+            if (door == null)
+                return "";
+            if (door.Open)
+                return " (open)";
+            if (door.Locked)
+                return " (locked)";
+            return " (closed)";
         }
 
         private static string GetCompassDirection(int dx, int dy)
