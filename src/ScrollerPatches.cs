@@ -202,7 +202,9 @@ namespace QudAccessibility
                 });
             }
 
-            return blocks.Count > 0 ? blocks : null;
+            // Return empty list (not null) when screen is active but no content —
+            // null would auto-clear the provider and fall through to map blocks
+            return blocks;
         }
 
         // -----------------------------------------------------------------
@@ -401,7 +403,7 @@ namespace QudAccessibility
                 }
             }
 
-            return blocks.Count > 0 ? blocks : null;
+            return blocks;
         }
 
         // -----------------------------------------------------------------
@@ -445,7 +447,7 @@ namespace QudAccessibility
             if (!string.IsNullOrEmpty(details))
                 blocks.Add(new ScreenReader.ContentBlock { Title = "Details", Body = details });
 
-            return blocks.Count > 0 ? blocks : null;
+            return blocks;
         }
 
         // -----------------------------------------------------------------

@@ -123,7 +123,7 @@ namespace QudAccessibility
             if (!string.IsNullOrEmpty(pageText))
                 blocks.Add(new ScreenReader.ContentBlock { Title = "Page Content", Body = pageText });
 
-            return blocks.Count > 0 ? blocks : null;
+            return blocks;
         }
     }
 }
