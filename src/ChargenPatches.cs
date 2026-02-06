@@ -4,6 +4,7 @@ using HarmonyLib;
 using XRL.CharacterBuilds;
 using XRL.CharacterBuilds.Qud.UI;
 using XRL.CharacterBuilds.UI;
+using XRL.Rules;
 using XRL.UI.Framework;
 
 namespace QudAccessibility
@@ -178,6 +179,19 @@ namespace QudAccessibility
             {
                 Speech.Interrupt(label);
             }
+        }
+
+        /// <summary>
+        /// After an attribute value changes (+/- buttons), announce the new value.
+        /// </summary>
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(QudAttributesModuleWindow), nameof(QudAttributesModuleWindow.AttributeUpdated))]
+        public static void AttributeUpdated_Postfix(AttributeDataElement att)
+        {
+            int mod = Stat.GetScoreModifier(att.Value);
+            string modStr = mod >= 0 ? "+" + mod : mod.ToString();
+            Speech.Interrupt(att.Value + ", modifier " + modStr
+                + ", " + att.window.apRemaining + " points remaining");
         }
     }
 }

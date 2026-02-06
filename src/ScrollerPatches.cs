@@ -4,6 +4,7 @@ using Qud.API;
 using Qud.UI;
 using XRL.Rules;
 using XRL.UI;
+using XRL.CharacterBuilds.Qud.UI;
 using XRL.UI.Framework;
 using XRL.World;
 using XRL.World.Parts;
@@ -351,6 +352,16 @@ namespace QudAccessibility
             {
                 string state = catRow.Collapsed ? "collapsed" : "expanded";
                 return catRow.CategoryDescription + ", " + state;
+            }
+
+            if (element is AttributeDataElement chargenAttr)
+            {
+                string label = chargenAttr.Attribute + " " + chargenAttr.Value;
+                int mod = Stat.GetScoreModifier(chargenAttr.Value);
+                label += ", modifier " + (mod >= 0 ? "+" + mod : mod.ToString());
+                label += ", " + chargenAttr.APToRaise + " point" +
+                    (chargenAttr.APToRaise != 1 ? "s" : "") + " to raise";
+                return label;
             }
 
             if (element is PrefixMenuOption prefixOpt)
