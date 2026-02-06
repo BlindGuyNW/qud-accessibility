@@ -29,11 +29,17 @@ All mod source lives in `src/`. The `decompiled/` directory contains ~5400 decom
 ### Source Files
 
 - **Speech.cs** — Static TTS wrapper. `Say()`, `Interrupt()`, `SayIfNew()`. Strips `{{color|...}}` markup via `ConsoleLib.Console.ColorUtility.StripFormatting()` before speaking. Lazily creates the `WindowsTTS` MonoBehaviour on first use (the game only creates it when its own accessibility manager speaks).
-- **ScreenReader.cs** — MonoBehaviour for F2 re-read, F3/F4 block navigation (with dynamic provider pattern), look mode cursor tracking, and nearby object scanner (PgUp/PgDn). Contains `BuildMapBlocks()` default provider (stats, condition, location, messages, abilities).
-- **ScrollerPatches.cs** — Central hub for scroller vocalization. Contains `GetElementLabel()` (extracts readable text from any `FrameworkDataElement` subclass) and postfixes for `FrameworkScroller.UpdateSelection()`, `PaperdollScroller.UpdateSelection()`, plus screen `Show()` methods (main menu, keybinds, saves, character sheet, pick items).
+- **ScreenReader.cs** — MonoBehaviour for F2 re-read, F3/F4 block navigation (with dynamic provider pattern), look mode cursor tracking, and pick target mode tracking. Dispatches to `NearbyScanner` for map-screen scanning. Contains `BuildMapBlocks()` default provider (stats, condition, location, messages, abilities).
+- **NearbyScanner.cs** — Static helper for the nearby object scanner (PgUp/PgDn/Home on the map screen). Scans the current zone by category (Hostile, Friendly, Items, Corpses, Features), sorts by distance, and announces results. Also provides `GetDoorStateSuffix()` and `GetCompassDirection()` used by `ScreenReader`.
+- **ScrollerPatches.cs** — Core scroller vocalization. Contains `GetElementLabel()` (extracts readable text from any `FrameworkDataElement` subclass) and postfixes for `FrameworkScroller.UpdateSelection()`, `PaperdollScroller.UpdateSelection()`, plus patches for main menu, keybinds, abilities, saves, and pick items screens.
 - **ChargenPatches.cs** — Harmony postfixes on `EmbarkBuilderModuleWindowDescriptor.show()` (announces screen title) and `HorizontalScroller.UpdateSelection()` (speaks choice title + description).
 - **TradePatches.cs** — Trade/container screen vocalization: title announcements, column switching, quantity tracking, F2 summary. Contains `BuildTradeBlocks()` provider for F3/F4 (trade summary, commands).
 - **PopupPatches.cs** — Harmony prefixes on `Popup.WaitNewPopupMessage`, `NewPopupMessageAsync`, `Show`, `ShowAsync` (speaks popup title + message).
+- **HelpScreenPatches.cs** — Help screen: title announcement, content scrolling feedback, highlight tracking, and `BuildHelpBlocks()` F3/F4 provider.
+- **CharacterSheetPatches.cs** — Character sheet (StatusScreensScreen): tab name announcement and `BuildCharSheetBlocks()` F3/F4 provider for stats/points.
+- **TerminalPatches.cs** — Cybernetics/generic terminal: body + first option announcement and `BuildTerminalBlocks()` F3/F4 provider.
+- **GameSummaryPatches.cs** — Game summary (death/ending) screen: name/details announcement and `BuildGameSummaryBlocks()` F3/F4 provider.
+- **OptionsScreenPatches.cs** — Options screen: title announcement on first show and highlight tracking for F2 content.
 
 ### Key Game APIs
 
@@ -68,6 +74,10 @@ Providers are self-validating: they check whether their screen is still active a
 **Existing providers:**
 - `BuildMapBlocks()` in `ScreenReader.cs` — Stats, Condition, Location, Messages, Abilities
 - `BuildTradeBlocks()` in `TradePatches.cs` — Trade Summary, Commands
+- `BuildHelpBlocks()` in `HelpScreenPatches.cs` — Current help topic text
+- `BuildCharSheetBlocks()` in `CharacterSheetPatches.cs` — Character/skill points
+- `BuildTerminalBlocks()` in `TerminalPatches.cs` — Terminal body + options
+- `BuildGameSummaryBlocks()` in `GameSummaryPatches.cs` — Name, Details
 - Chargen summary uses static `SetBlocks()` in `ChargenPatches.cs`
 
 Blocks are regenerated fresh on each F3/F4 press, so data is always current.
