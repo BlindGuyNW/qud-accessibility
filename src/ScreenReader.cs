@@ -158,7 +158,7 @@ namespace QudAccessibility
         // Nearby object scanner
         // -----------------------------------------------------------------
         private static readonly string[] ScanCategories =
-            { "Creatures", "Items", "Corpses", "Features" };
+            { "Hostile", "Friendly", "Items", "Corpses", "Features" };
         private static int _categoryIndex;
         private static readonly List<ScanEntry> _scanEntries = new List<ScanEntry>();
         private static int _scanIndex = -1;
@@ -449,7 +449,7 @@ namespace QudAccessibility
 
                     // Creatures: must be currently visible (they move)
                     // Others: explored is enough (static objects)
-                    if (category == "Creatures")
+                    if (category == "Hostile" || category == "Friendly")
                     {
                         if (!cell.IsVisible())
                             continue;
@@ -495,10 +495,16 @@ namespace QudAccessibility
         {
             switch (category)
             {
-                case "Creatures":
+                case "Hostile":
                     return obj.HasPart("Brain")
                         && obj != XRL.The.Player
-                        && obj.IsVisible();
+                        && obj.IsVisible()
+                        && obj.IsHostileTowards(XRL.The.Player);
+                case "Friendly":
+                    return obj.HasPart("Brain")
+                        && obj != XRL.The.Player
+                        && obj.IsVisible()
+                        && !obj.IsHostileTowards(XRL.The.Player);
                 case "Items":
                     return obj.IsTakeable()
                         && !obj.HasPropertyOrTag("Corpse");
