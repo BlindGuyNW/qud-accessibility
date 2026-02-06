@@ -11,6 +11,7 @@ using XRL.UI.Framework;
 using XRL.World;
 using XRL.World.Parts;
 using XRL.World.Parts.Mutation;
+using XRL.World.Skills;
 
 namespace QudAccessibility
 {
@@ -313,6 +314,8 @@ namespace QudAccessibility
         [HarmonyPatch(typeof(StatusScreensScreen), nameof(StatusScreensScreen.UpdateActiveScreen))]
         public static void StatusScreensScreen_UpdateActiveScreen_Postfix(StatusScreensScreen __instance)
         {
+            ScreenReader.SetBlockProvider(BuildCharSheetBlocks);
+
             // activeScreen is private, replicate the lookup from UpdateActiveScreen line 216-217
             int index = __instance.CurrentScreen % __instance.Screens.Count;
             var screen = __instance.Screens[index]?.GetComponent<IStatusScreen>();
@@ -323,6 +326,81 @@ namespace QudAccessibility
                 Speech.Interrupt(tabName);
                 ScreenReader.SetScreenContent(tabName);
             }
+        }
+
+        private static List<ScreenReader.ContentBlock> BuildCharSheetBlocks()
+        {
+            var instance = SingletonWindowBase<StatusScreensScreen>.instance;
+            if (instance == null || !instance.navigationContext.IsActive())
+                return null;
+
+            var go = StatusScreensScreen.GO;
+            if (go == null)
+                return new List<ScreenReader.ContentBlock>();
+
+            int count = instance.Screens.Count;
+            if (count == 0)
+                return new List<ScreenReader.ContentBlock>();
+
+            int index = instance.CurrentScreen % count;
+            var activeScreen = instance.Screens[index]?.GetComponent<IStatusScreen>();
+
+            if (activeScreen is CharacterStatusScreen)
+            {
+                var blocks = new List<ScreenReader.ContentBlock>();
+
+                // Character Summary
+                int level = go.Level;
+                int hp = go.Stat("Hitpoints");
+                int maxHp = go.GetStat("Hitpoints").BaseValue;
+                int xp = go.Stat("XP");
+                int nextXp = Leveler.GetXPForLevel(go.Stat("Level") + 1);
+                int weight = go.Weight;
+                blocks.Add(new ScreenReader.ContentBlock
+                {
+                    Title = "Character Summary",
+                    Body = $"Level {level}, HP {hp}/{maxHp}, XP {xp}/{nextXp}, Weight {weight}"
+                });
+
+                // Attribute Points
+                int ap = go.Stat("AP");
+                blocks.Add(new ScreenReader.ContentBlock
+                {
+                    Title = "Attribute Points",
+                    Body = ap > 0 ? ap + " available" : "none available"
+                });
+
+                // Mutation Points
+                string mutTerm;
+                string mutColor;
+                GetMutationTermEvent.GetFor(go, out mutTerm, out mutColor);
+                string termCapital = XRL.Language.Grammar.MakeTitleCase(mutTerm);
+                int mp = go.Stat("MP");
+                blocks.Add(new ScreenReader.ContentBlock
+                {
+                    Title = termCapital + " Points",
+                    Body = mp > 0 ? mp + " available" : "none available"
+                });
+
+                return blocks;
+            }
+
+            if (activeScreen is SkillsAndPowersStatusScreen)
+            {
+                var blocks = new List<ScreenReader.ContentBlock>();
+
+                int sp = go.GetStat("SP").Value;
+                blocks.Add(new ScreenReader.ContentBlock
+                {
+                    Title = "Skill Points",
+                    Body = sp > 0 ? sp + " available" : "none available"
+                });
+
+                return blocks;
+            }
+
+            // Other tabs: return empty list to prevent falling through to map blocks
+            return new List<ScreenReader.ContentBlock>();
         }
 
         // -----------------------------------------------------------------
@@ -811,6 +889,83 @@ namespace QudAccessibility
                         int cost = spData.entry.Skill != null ? spData.entry.Skill.Cost : spData.entry.Power?.Cost ?? 0;
                         if (cost > 0)
                             label += ", " + cost + " SP";
+                    }
+
+                    // Prerequisites for unlearned powers
+                    if (learned != SPNode.LearnedStatus.Learned && spData.entry.Power != null)
+                    {
+                        var power = spData.entry.Power;
+
+                        // Stat requirements (OR-groups)
+                        var reqs = power.requirements;
+                        if (reqs != null && reqs.Count > 0)
+                        {
+                            for (int ri = 0; ri < reqs.Count; ri++)
+                            {
+                                var req = reqs[ri];
+                                if (ri > 0)
+                                    label += ", or";
+                                for (int ai = 0; ai < req.Attributes.Count; ai++)
+                                {
+                                    string attrName = req.Attributes[ai];
+                                    int minimum = req.Minimums[ai];
+                                    bool met = spData.go.BaseStat(attrName) >= minimum;
+                                    if (ai > 0)
+                                        label += " and";
+                                    label += ", Requires " + minimum + " " + attrName
+                                           + ", " + (met ? "met" : "not met");
+                                }
+                            }
+                        }
+
+                        // Prerequisite skills/mutations
+                        if (!string.IsNullOrEmpty(power.Requires))
+                        {
+                            foreach (string reqClass in power.Requires.CachedCommaExpansion())
+                            {
+                                string reqName = reqClass;
+                                bool met = false;
+                                if (SkillFactory.Factory.TryGetFirstEntry(reqClass, out var entry))
+                                {
+                                    // Skip initiatory implicit prereqs
+                                    if (power.IsSkillInitiatory)
+                                    {
+                                        int idx = power.ParentSkill.PowerList.IndexOf(power);
+                                        if (idx > 0 && power.ParentSkill.PowerList[idx - 1] == entry)
+                                            continue;
+                                    }
+                                    reqName = entry.Name;
+                                    met = spData.go.HasSkill(reqClass);
+                                }
+                                else if (XRL.MutationFactory.HasMutation(reqClass))
+                                {
+                                    reqName = XRL.MutationFactory.GetMutationEntryByName(reqClass).Name;
+                                    met = spData.go.HasPart(reqClass);
+                                }
+                                label += ", Requires " + reqName + ", " + (met ? "met" : "not met");
+                            }
+                        }
+
+                        // Exclusions
+                        if (power.Exclusion != null)
+                        {
+                            foreach (string exClass in power.Exclusion.CachedCommaExpansion())
+                            {
+                                string exName = exClass;
+                                bool satisfied = false;
+                                if (SkillFactory.Factory.TryGetFirstEntry(exClass, out var exEntry))
+                                {
+                                    exName = exEntry.Name;
+                                    satisfied = !spData.go.HasSkill(exClass);
+                                }
+                                else if (XRL.MutationFactory.HasMutation(exClass))
+                                {
+                                    exName = XRL.MutationFactory.GetMutationEntryByName(exClass).Name;
+                                    satisfied = !spData.go.HasPart(exClass);
+                                }
+                                label += ", Excludes " + exName + ", " + (satisfied ? "met" : "not met");
+                            }
+                        }
                     }
                 }
                 string desc = spData.entry.Description;
