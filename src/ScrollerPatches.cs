@@ -542,7 +542,27 @@ namespace QudAccessibility
                 if (invData.category)
                 {
                     string name = Speech.Clean(invData.categoryName ?? "");
-                    return name + ", " + invData.categoryAmount + " items, " + invData.categoryWeight + " pounds";
+                    // Game bug: InventoryLineData.set() never assigns categoryAmount,
+                    // so it's always 0.  Count items from the scroller data instead.
+                    int itemCount = 0;
+                    var scrollData = invData.screen?.inventoryController?.scrollContext?.data;
+                    if (scrollData != null)
+                    {
+                        bool found = false;
+                        for (int i = 0; i < scrollData.Count; i++)
+                        {
+                            if (scrollData[i] == invData)
+                            {
+                                found = true;
+                                continue;
+                            }
+                            if (!found) continue;
+                            if (scrollData[i] is InventoryLineData next && next.category)
+                                break;
+                            itemCount++;
+                        }
+                    }
+                    return name + ", " + itemCount + " items, " + invData.categoryWeight + " pounds";
                 }
                 string colorSuffix = Speech.GetObjectColorSuffix(invData.go);
                 string display = Speech.Clean(invData.displayName ?? "");
