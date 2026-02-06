@@ -119,9 +119,11 @@ namespace QudAccessibility
             int dist = System.Math.Max(System.Math.Abs(dx), System.Math.Abs(dy));
             string dir = GetCompassDirection(dx, dy);
 
+            int cx = entry.Object.CurrentCell.X;
+            int cy = entry.Object.CurrentCell.Y;
             string msg = dist == 0
-                ? entry.Name + ", here"
-                : entry.Name + ", " + dist + " " + dir;
+                ? entry.Name + ", here (" + cx + "," + cy + ")"
+                : entry.Name + ", " + dist + " " + dir + " (" + cx + "," + cy + ")";
 
             Speech.Interrupt(msg);
             ScreenReader.SetScreenContent(msg);
