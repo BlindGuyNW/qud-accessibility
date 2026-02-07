@@ -3,6 +3,7 @@ using Qud.UI;
 using XRL.Core;
 using XRL.UI;
 using XRL.World;
+using XRL.World.Capabilities;
 using static XRL.UI.PickTarget;
 
 namespace QudAccessibility
@@ -56,6 +57,10 @@ namespace QudAccessibility
 
         private static void OnMessageLogEntry(string message)
         {
+            // Suppress "You pass by ..." spam during autoexplore/automove
+            if (AutoAct.IsActive() && message != null && message.StartsWith("You pass by "))
+                return;
+
             string clean = Speech.Clean(message);
             if (!string.IsNullOrEmpty(clean))
                 Speech.Queue(clean);
