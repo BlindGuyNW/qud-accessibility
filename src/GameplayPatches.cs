@@ -57,13 +57,18 @@ namespace QudAccessibility
 
         private static void OnMessageLogEntry(string message)
         {
-            // Suppress "You pass by ..." spam during autoexplore/automove
-            if (AutoAct.IsActive() && message != null && message.StartsWith("You pass by "))
+            string clean = Speech.Clean(message);
+            if (string.IsNullOrEmpty(clean))
                 return;
 
-            string clean = Speech.Clean(message);
-            if (!string.IsNullOrEmpty(clean))
-                Speech.Queue(clean);
+            // Suppress repetitive movement messages during autoexplore/automove
+            if (AutoAct.IsActive()
+                && (clean.StartsWith("You pass by ")
+                    || clean.StartsWith("You wade through ")
+                    || clean.StartsWith("You swim through ")))
+                return;
+
+            Speech.Queue(clean);
         }
 
         /// <summary>
