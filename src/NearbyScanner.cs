@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using XRL.World;
 using XRL.World.Capabilities;
 using XRL.World.Parts;
 
@@ -7,7 +9,7 @@ namespace QudAccessibility
 {
     /// <summary>
     /// Nearby object scanner for the map screen.
-    ///   Ctrl+PgDn/PgUp = cycle category (Hostile, Friendly, Items, Corpses, Features)
+    ///   Ctrl+PgDn/PgUp = cycle category (Hostile, Friendly, Items, Corpses, Features, Unexplored)
     ///   PgDn/PgUp = cycle objects in current category
     ///   Home = re-announce current object with fresh direction
     ///   Ctrl+Home = walk to selected object via automovement
@@ -15,7 +17,7 @@ namespace QudAccessibility
     internal static class NearbyScanner
     {
         private static readonly string[] ScanCategories =
-            { "Hostile", "Friendly", "Items", "Corpses", "Features" };
+            { "Hostile", "Friendly", "Items", "Corpses", "Features", "Unexplored" };
         private static int _categoryIndex;
         private static readonly List<ScanEntry> _scanEntries = new List<ScanEntry>();
         private static int _scanIndex = -1;
@@ -24,6 +26,9 @@ namespace QudAccessibility
         {
             public XRL.World.GameObject Object;
             public string Name;
+            // For coordinate-only entries (e.g. unexplored patches)
+            public int X;
+            public int Y;
         }
 
         /// <summary>
@@ -121,14 +126,23 @@ namespace QudAccessibility
             }
 
             var entry = _scanEntries[_scanIndex];
-            if (entry.Object?.CurrentCell == null)
+            int x, y;
+            if (entry.Object?.CurrentCell != null)
+            {
+                x = entry.Object.CurrentCell.X;
+                y = entry.Object.CurrentCell.Y;
+            }
+            else if (ScanCategories[_categoryIndex] == "Unexplored")
+            {
+                x = entry.X;
+                y = entry.Y;
+            }
+            else
             {
                 Speech.Interrupt("Object no longer available");
                 return;
             }
 
-            int x = entry.Object.CurrentCell.X;
-            int y = entry.Object.CurrentCell.Y;
             Speech.Interrupt("Walking to " + entry.Name);
             AutoAct.Setting = "M" + x + "," + y;
             XRL.The.ActionManager.SkipPlayerTurn = true;
@@ -140,16 +154,26 @@ namespace QudAccessibility
         private static void AnnounceEntry(ScanEntry entry)
         {
             var player = XRL.The.Player;
-            if (player?.CurrentCell == null || entry.Object?.CurrentCell == null)
+            if (player?.CurrentCell == null)
                 return;
 
-            int dx = entry.Object.CurrentCell.X - player.CurrentCell.X;
-            int dy = entry.Object.CurrentCell.Y - player.CurrentCell.Y;
-            int dist = System.Math.Max(System.Math.Abs(dx), System.Math.Abs(dy));
+            int cx, cy;
+            if (entry.Object?.CurrentCell != null)
+            {
+                cx = entry.Object.CurrentCell.X;
+                cy = entry.Object.CurrentCell.Y;
+            }
+            else
+            {
+                cx = entry.X;
+                cy = entry.Y;
+            }
+
+            int dx = cx - player.CurrentCell.X;
+            int dy = cy - player.CurrentCell.Y;
+            int dist = Math.Max(Math.Abs(dx), Math.Abs(dy));
             string dir = GetCompassDirection(dx, dy);
 
-            int cx = entry.Object.CurrentCell.X;
-            int cy = entry.Object.CurrentCell.Y;
             string msg = dist == 0
                 ? entry.Name + ", here (" + cx + "," + cy + ")"
                 : entry.Name + ", " + dist + " " + dir + " (" + cx + "," + cy + ")";
@@ -175,6 +199,14 @@ namespace QudAccessibility
                 return;
 
             string category = ScanCategories[_categoryIndex];
+            int px = player.CurrentCell.X;
+            int py = player.CurrentCell.Y;
+
+            if (category == "Unexplored")
+            {
+                ScanUnexploredPatches(zone, px, py);
+                return;
+            }
 
             for (int x = 0; x < zone.Width; x++)
             {
@@ -218,14 +250,106 @@ namespace QudAccessibility
             }
 
             // Sort by distance to player (closest first)
-            int px = player.CurrentCell.X;
-            int py = player.CurrentCell.Y;
             _scanEntries.Sort((a, b) =>
             {
-                int da = ChebyshevDist(a.Object, px, py);
-                int db = ChebyshevDist(b.Object, px, py);
+                int da = ChebyshevDist(a, px, py);
+                int db = ChebyshevDist(b, px, py);
                 return da.CompareTo(db);
             });
+        }
+
+        // -----------------------------------------------------------------
+        // Unexplored patch scanner — flood fill to find connected regions
+        // -----------------------------------------------------------------
+        private static void ScanUnexploredPatches(Zone zone, int px, int py)
+        {
+            int w = zone.Width;
+            int h = zone.Height;
+            var visited = new bool[w * h];
+
+            // Mark explored and solid-rock cells as visited (skip them)
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (zone.GetReallyExplored(x, y))
+                    {
+                        visited[x + y * w] = true;
+                        continue;
+                    }
+                    var c = zone.GetCell(x, y);
+                    if (c.HasWall() && !c.HasAdjacentLocalNonwallCell())
+                        visited[x + y * w] = true;
+                }
+            }
+
+            // BFS flood fill to find connected patches
+            var queue = new Queue<int>();
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (visited[x + y * w])
+                        continue;
+
+                    // New patch — BFS from this cell
+                    int count = 0;
+                    int nearX = x, nearY = y;
+                    int nearDist = Math.Max(Math.Abs(x - px), Math.Abs(y - py));
+
+                    queue.Enqueue(x + y * w);
+                    visited[x + y * w] = true;
+
+                    while (queue.Count > 0)
+                    {
+                        int idx = queue.Dequeue();
+                        int cx = idx % w;
+                        int cy = idx / w;
+                        count++;
+
+                        int d = Math.Max(Math.Abs(cx - px), Math.Abs(cy - py));
+                        if (d < nearDist)
+                        {
+                            nearDist = d;
+                            nearX = cx;
+                            nearY = cy;
+                        }
+
+                        // 8-connectivity neighbors
+                        for (int dy = -1; dy <= 1; dy++)
+                        {
+                            for (int dx = -1; dx <= 1; dx++)
+                            {
+                                if (dx == 0 && dy == 0) continue;
+                                int nx = cx + dx;
+                                int ny = cy + dy;
+                                if (nx < 0 || nx >= w || ny < 0 || ny >= h)
+                                    continue;
+                                int ni = nx + ny * w;
+                                if (!visited[ni])
+                                {
+                                    visited[ni] = true;
+                                    queue.Enqueue(ni);
+                                }
+                            }
+                        }
+                    }
+
+                    string name = count == 1
+                        ? "1 unexplored cell"
+                        : count + " unexplored cells";
+                    _scanEntries.Add(new ScanEntry
+                    {
+                        Name = name,
+                        X = nearX,
+                        Y = nearY
+                    });
+                }
+            }
+
+            // Sort by distance (nearest patch first)
+            _scanEntries.Sort((a, b) =>
+                ChebyshevDist(a, px, py).CompareTo(ChebyshevDist(b, px, py)));
         }
 
         private static bool MatchesCategory(XRL.World.GameObject obj, string category)
@@ -256,13 +380,13 @@ namespace QudAccessibility
             }
         }
 
-        private static int ChebyshevDist(XRL.World.GameObject obj, int px, int py)
+        private static int ChebyshevDist(ScanEntry entry, int px, int py)
         {
-            if (obj?.CurrentCell == null)
-                return int.MaxValue;
-            return System.Math.Max(
-                System.Math.Abs(obj.CurrentCell.X - px),
-                System.Math.Abs(obj.CurrentCell.Y - py));
+            if (entry.Object?.CurrentCell != null)
+                return Math.Max(
+                    Math.Abs(entry.Object.CurrentCell.X - px),
+                    Math.Abs(entry.Object.CurrentCell.Y - py));
+            return Math.Max(Math.Abs(entry.X - px), Math.Abs(entry.Y - py));
         }
 
         /// <summary>
