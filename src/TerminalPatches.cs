@@ -46,7 +46,7 @@ namespace QudAccessibility
             if (!string.IsNullOrEmpty(announcement))
             {
                 ScreenReader.SetScreenContent(announcement);
-                Speech.Interrupt(announcement);
+                Speech.Announce(announcement);
             }
         }
 

@@ -87,7 +87,7 @@ namespace QudAccessibility
 
                 if (!TutorialManager.IsActive)
                 {
-                    Speech.Interrupt(summaryText);
+                    Speech.Announce(summaryText);
                 }
                 return;
             }
@@ -95,7 +95,7 @@ namespace QudAccessibility
             if (!string.IsNullOrEmpty(screenTitle))
             {
                 ScreenReader.SetScreenContent(screenTitle);
-                Speech.Interrupt(screenTitle);
+                Speech.Announce(screenTitle);
             }
         }
 

@@ -61,7 +61,7 @@ namespace QudAccessibility
             _lastHighlightRaw = text;
             // Tutorial text is spoken but does NOT overwrite screen content.
             // This preserves the primary content (e.g., summary blocks) for F2.
-            Speech.Interrupt(text);
+            Speech.Announce(text);
         }
 
         private static void SpeakTutorial(string text)
@@ -70,7 +70,7 @@ namespace QudAccessibility
             {
                 // In-game tutorial popups DO set screen content (they're modal).
                 ScreenReader.SetScreenContent(text);
-                Speech.Interrupt(text);
+                Speech.Announce(text);
             }
         }
     }

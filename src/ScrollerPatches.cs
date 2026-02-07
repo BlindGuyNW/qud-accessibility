@@ -48,7 +48,7 @@ namespace QudAccessibility
                 : "Main Menu";
 
             ScreenReader.SetScreenContent(announcement);
-            Speech.Interrupt(announcement);
+            Speech.Announce(announcement);
         }
 
         /// <summary>
@@ -140,7 +140,7 @@ namespace QudAccessibility
                 ? "Keybinds. " + first
                 : "Keybinds";
             ScreenReader.SetScreenContent(announcement);
-            Speech.Interrupt(announcement);
+            Speech.Announce(announcement);
         }
 
         // -----------------------------------------------------------------
@@ -176,7 +176,7 @@ namespace QudAccessibility
                 ? "Abilities. " + first
                 : "Abilities";
             ScreenReader.SetScreenContent(announcement);
-            Speech.Interrupt(announcement);
+            Speech.Announce(announcement);
         }
 
         // -----------------------------------------------------------------
@@ -200,7 +200,7 @@ namespace QudAccessibility
                 ? "Continue. " + first
                 : "Continue";
             ScreenReader.SetScreenContent(announcement);
-            Speech.Interrupt(announcement);
+            Speech.Announce(announcement);
         }
 
         /// <summary>
@@ -237,7 +237,7 @@ namespace QudAccessibility
         {
             if (!string.IsNullOrEmpty(Title))
             {
-                Speech.Interrupt(Speech.Clean(Title));
+                Speech.Announce(Speech.Clean(Title));
             }
         }
 

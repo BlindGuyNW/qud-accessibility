@@ -14,7 +14,7 @@ namespace QudAccessibility
     {
         private static string _lastSpoken;
         private static bool _initialized;
-        private static bool _prioritySpeaking;
+        private static float _priorityUntil;
 
         private static void EnsureInitialized()
         {
@@ -213,7 +213,8 @@ namespace QudAccessibility
 
         /// <summary>
         /// Stop any current speech, then speak new text.
-        /// Used for high-priority announcements (popups, screen titles).
+        /// Used for user-initiated actions (F2 re-read, F3/F4 blocks, scanner,
+        /// attribute changes) where only the latest utterance matters.
         /// Navigation speech (SayIfNew) will not interrupt until this finishes.
         /// </summary>
         public static void Interrupt(string text)
@@ -226,7 +227,25 @@ namespace QudAccessibility
             WindowsTTS.Stop();
             WindowsTTS.Speak(clean);
             _lastSpoken = clean;
-            _prioritySpeaking = true;
+            _priorityUntil = Time.unscaledTime + clean.Length / 10f;
+        }
+
+        /// <summary>
+        /// Speak text without cancelling current speech. Used for system-initiated
+        /// announcements (popups, screen titles) that should queue behind any
+        /// prior speech rather than cancelling it.
+        /// Navigation speech (SayIfNew) will not interrupt until this finishes.
+        /// </summary>
+        public static void Announce(string text)
+        {
+            string clean = Clean(text);
+            if (clean == null)
+                return;
+
+            EnsureInitialized();
+            WindowsTTS.Speak(clean);
+            _lastSpoken = clean;
+            _priorityUntil = Time.unscaledTime + clean.Length / 10f;
         }
 
         /// <summary>
@@ -245,8 +264,9 @@ namespace QudAccessibility
 
         /// <summary>
         /// Only speak if the text differs from the last spoken text.
-        /// Will not interrupt priority speech (from Interrupt()) that is
-        /// still playing — prevents navigation from cutting off popups.
+        /// Will not interrupt priority speech (from Interrupt()/Announce())
+        /// that is still playing — prevents navigation from cutting off
+        /// popups and screen titles.
         /// </summary>
         public static void SayIfNew(string text)
         {
@@ -259,13 +279,15 @@ namespace QudAccessibility
 
             EnsureInitialized();
 
-            // If priority speech (popups, screen titles) is still playing,
+            // If priority speech is still playing (estimated by text length),
             // queue behind it instead of interrupting.
-            if (!(_prioritySpeaking && WindowsTTS.IsSpeaking()))
+            if (Time.unscaledTime < _priorityUntil)
+                WindowsTTS.Speak(clean);
+            else
+            {
                 WindowsTTS.Stop();
-
-            _prioritySpeaking = false;
-            WindowsTTS.Speak(clean);
+                WindowsTTS.Speak(clean);
+            }
             _lastSpoken = clean;
         }
     }

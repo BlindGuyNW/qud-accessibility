@@ -169,7 +169,7 @@ namespace QudAccessibility
             if (!string.IsNullOrEmpty(toSpeak))
             {
                 ScreenReader.SetScreenContent(toSpeak);
-                Speech.Interrupt(toSpeak);
+                Speech.Announce(toSpeak);
             }
         }
     }

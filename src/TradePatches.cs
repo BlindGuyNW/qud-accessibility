@@ -104,7 +104,7 @@ namespace QudAccessibility
                 else if (side == 1)
                     announcement += ". Your items";
 
-                Speech.Interrupt(announcement);
+                Speech.Announce(announcement);
                 return;
             }
 

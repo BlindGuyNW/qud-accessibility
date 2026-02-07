@@ -21,7 +21,7 @@ namespace QudAccessibility
             string announcement = !string.IsNullOrEmpty(name)
                 ? "Game Summary. " + name
                 : "Game Summary";
-            Speech.Interrupt(announcement);
+            Speech.Announce(announcement);
 
             // F2 content includes full details
             string screenContent = announcement;

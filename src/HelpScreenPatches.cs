@@ -48,7 +48,7 @@ namespace QudAccessibility
                 ? "Help. " + first
                 : "Help";
             ScreenReader.SetScreenContent(announcement);
-            Speech.Interrupt(announcement);
+            Speech.Announce(announcement);
         }
 
         [HarmonyPostfix]
