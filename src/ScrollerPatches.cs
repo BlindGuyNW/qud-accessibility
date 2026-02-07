@@ -78,6 +78,30 @@ namespace QudAccessibility
             {
                 Speech.SayIfNew(label);
             }
+
+            // Update F2 screen content for reputation and quests screens
+            if (data[pos] is FactionsLineData factionElement && factionElement.id != null)
+            {
+                var faction = Factions.Get(factionElement.id);
+                string detail = label ?? "";
+                if (faction != null)
+                {
+                    string feeling = Speech.Clean(faction.GetFeelingText());
+                    if (!string.IsNullOrEmpty(feeling))
+                        detail += ". " + feeling;
+                }
+                ScreenReader.SetScreenContent(detail);
+            }
+            else if (data[pos] is QuestsLineData questElement && questElement.quest != null)
+            {
+                string detail = label ?? "";
+                string giver = questElement.quest.QuestGiverName;
+                string location = questElement.quest.QuestGiverLocationName;
+                if (!string.IsNullOrEmpty(giver) || !string.IsNullOrEmpty(location))
+                    detail += ". Given by " + (giver ?? "unknown")
+                        + " at " + (location ?? "unknown");
+                ScreenReader.SetScreenContent(detail);
+            }
         }
 
         // -----------------------------------------------------------------

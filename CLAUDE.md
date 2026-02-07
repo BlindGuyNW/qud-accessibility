@@ -75,7 +75,7 @@ Providers are self-validating: they check whether their screen is still active a
 - `BuildMapBlocks()` in `ScreenReader.cs` — Stats, Condition, Location, Messages, Abilities
 - `BuildTradeBlocks()` in `TradePatches.cs` — Trade Summary, Commands
 - `BuildHelpBlocks()` in `HelpScreenPatches.cs` — Current help topic text
-- `BuildCharSheetBlocks()` in `CharacterSheetPatches.cs` — Character/skill points
+- `BuildCharSheetBlocks()` in `CharacterSheetPatches.cs` — Character/skill points, Reputation (status/rank/interests), Quests (info/steps)
 - `BuildTerminalBlocks()` in `TerminalPatches.cs` — Terminal body + options
 - `BuildGameSummaryBlocks()` in `GameSummaryPatches.cs` — Name, Details
 - Chargen summary uses static `SetBlocks()` in `ChargenPatches.cs`

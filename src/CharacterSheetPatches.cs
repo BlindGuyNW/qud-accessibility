@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using HarmonyLib;
 using Qud.UI;
 using XRL.Rules;
@@ -101,6 +102,96 @@ namespace QudAccessibility
                     Body = sp > 0 ? sp + " available" : "none available"
                 });
 
+                return blocks;
+            }
+
+            if (activeScreen is FactionsStatusScreen facScreen)
+            {
+                var blocks = new List<ScreenReader.ContentBlock>();
+                var scrollData = facScreen.controller?.scrollContext?.data;
+                if (scrollData != null)
+                {
+                    int pos = facScreen.controller.selectedPosition;
+                    if (pos >= 0 && pos < scrollData.Count
+                        && scrollData[pos] is FactionsLineData fld && fld.id != null)
+                    {
+                        var faction = Factions.Get(fld.id);
+                        if (faction != null)
+                        {
+                            string feeling = Speech.Clean(faction.GetFeelingText());
+                            if (!string.IsNullOrEmpty(feeling))
+                                blocks.Add(new ScreenReader.ContentBlock
+                                    { Title = "Status", Body = feeling });
+
+                            string rankParts = "";
+                            string rank = Speech.Clean(faction.GetRankText());
+                            if (!string.IsNullOrEmpty(rank))
+                                rankParts = rank;
+                            string pet = Speech.Clean(faction.GetPetText());
+                            if (!string.IsNullOrEmpty(pet))
+                                rankParts = rankParts.Length > 0
+                                    ? rankParts + " " + pet : pet;
+                            string holy = Speech.Clean(faction.GetHolyPlaceText());
+                            if (!string.IsNullOrEmpty(holy))
+                                rankParts = rankParts.Length > 0
+                                    ? rankParts + " " + holy : holy;
+                            if (!string.IsNullOrEmpty(rankParts))
+                                blocks.Add(new ScreenReader.ContentBlock
+                                    { Title = "Rank", Body = rankParts });
+
+                            string secrets = Speech.Clean(
+                                Faction.GetPreferredSecretDescription(fld.id));
+                            if (!string.IsNullOrEmpty(secrets))
+                                blocks.Add(new ScreenReader.ContentBlock
+                                    { Title = "Interests", Body = secrets });
+                        }
+                    }
+                }
+                return blocks;
+            }
+
+            if (activeScreen is QuestsStatusScreen questScreen)
+            {
+                var blocks = new List<ScreenReader.ContentBlock>();
+                var scrollData = questScreen.controller?.scrollContext?.data;
+                if (scrollData != null)
+                {
+                    int pos = questScreen.controller.selectedPosition;
+                    if (pos >= 0 && pos < scrollData.Count
+                        && scrollData[pos] is QuestsLineData qld && qld.quest != null)
+                    {
+                        var quest = qld.quest;
+                        blocks.Add(new ScreenReader.ContentBlock
+                        {
+                            Title = Speech.Clean(quest.DisplayName) ?? "Quest",
+                            Body = "Given by "
+                                + (quest.QuestGiverName ?? "unknown")
+                                + " at "
+                                + (quest.QuestGiverLocationName ?? "unknown")
+                        });
+
+                        if (quest.StepsByID != null)
+                        {
+                            foreach (var step in quest.StepsByID.Values
+                                .OrderBy(s => s.Ordinal))
+                            {
+                                if (step.Hidden) continue;
+                                string status = step.Failed ? "Failed"
+                                    : step.Finished ? "Complete" : "Active";
+                                string optional = step.Optional
+                                    ? "Optional: " : "";
+                                string name = Speech.Clean(step.Name) ?? "";
+                                string body = optional + name;
+                                string text = (!step.Finished || !step.Collapse)
+                                    ? Speech.Clean(step.Text) : null;
+                                if (!string.IsNullOrEmpty(text))
+                                    body += ". " + text;
+                                blocks.Add(new ScreenReader.ContentBlock
+                                    { Title = status, Body = body });
+                            }
+                        }
+                    }
+                }
                 return blocks;
             }
 
