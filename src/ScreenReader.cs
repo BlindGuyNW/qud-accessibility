@@ -698,7 +698,43 @@ namespace QudAccessibility
             locSb.Append(time + " " + day + " of " + month);
             blocks.Add(new ContentBlock { Title = "Location", Body = locSb.ToString() });
 
-            // Block 4: Messages (last 5)
+            // Block 4: Exploration
+            var exploSb = new StringBuilder();
+            if (zone != null)
+            {
+                int unexplored = 0;
+                for (int y = 0; y < zone.Height; y++)
+                {
+                    for (int x = 0; x < zone.Width; x++)
+                    {
+                        if (!zone.GetReallyExplored(x, y))
+                        {
+                            var c = zone.GetCell(x, y);
+                            if (!c.HasWall() || c.HasAdjacentLocalNonwallCell())
+                                unexplored++;
+                        }
+                    }
+                }
+
+                if (unexplored == 0)
+                    exploSb.Append("Fully explored");
+                else
+                    exploSb.Append(unexplored + " unexplored cells");
+
+                bool hasStairsUp = zone.FindObject(o => o.HasPart("StairsUp")) != null;
+                bool hasStairsDown = zone.FindObject(o => o.HasPart("StairsDown")) != null;
+                if (hasStairsUp && hasStairsDown)
+                    exploSb.Append(". Stairs up and down");
+                else if (hasStairsUp)
+                    exploSb.Append(". Stairs up");
+                else if (hasStairsDown)
+                    exploSb.Append(". Stairs down");
+                else
+                    exploSb.Append(". No stairs");
+            }
+            blocks.Add(new ContentBlock { Title = "Exploration", Body = exploSb.ToString() });
+
+            // Block 5: Messages (last 5)
             var msgSb = new StringBuilder();
             var msgQueue = XRL.The.Game?.Player?.Messages;
             if (msgQueue != null)
@@ -717,7 +753,7 @@ namespace QudAccessibility
             }
             blocks.Add(new ContentBlock { Title = "Messages", Body = msgSb.ToString() });
 
-            // Block 5: Abilities
+            // Block 6: Abilities
             var abilSb = new StringBuilder();
             var abilities = player.GetPart<ActivatedAbilities>();
             if (abilities != null)
