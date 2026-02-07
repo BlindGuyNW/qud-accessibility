@@ -139,12 +139,31 @@ namespace QudAccessibility
         internal static bool InPickTargetMode;
         private static int _lastPickX = int.MinValue;
         private static int _lastPickY = int.MinValue;
+        private static PickTarget.PickStyle _pickStyle;
+        private static int _pickRadius;
+        private static int _pickRange;
 
         internal static void EnterPickTargetMode()
         {
             InPickTargetMode = true;
             _lastPickX = int.MinValue;
             _lastPickY = int.MinValue;
+            _pickStyle = PickTarget.PickStyle.EmptyCell;
+            _pickRadius = 0;
+            _pickRange = 9999;
+        }
+
+        internal static void EnterPickTargetMode(
+            PickTarget.PickStyle style, int radius, int range)
+        {
+            InPickTargetMode = true;
+            _lastPickX = int.MinValue;
+            _lastPickY = int.MinValue;
+            _pickStyle = style;
+            _pickRadius = radius;
+            _pickRange = range;
+            // No block provider for targeting — creature details are included
+            // directly in the auto-announce on cursor move.
         }
 
         internal static void ExitPickTargetMode()
@@ -175,53 +194,55 @@ namespace QudAccessibility
                 _lookBufferField = typeof(Look).GetField("Buffer",
                     BindingFlags.NonPublic | BindingFlags.Static);
 
-            var lookBuffer = _lookBufferField?.GetValue(null)
-                as ConsoleLib.Console.ScreenBuffer;
-            if (lookBuffer != null)
+            if (InLookMode)
             {
-                int cx = lookBuffer.focusPosition.x;
-                int cy = lookBuffer.focusPosition.y;
-                var currentTarget = Look.lookingAt;
-
-                bool positionChanged = cx != _lastLookX || cy != _lastLookY;
-                bool targetChanged = currentTarget != _lastLookTarget;
-
-                if (positionChanged || targetChanged)
+                var lookBuffer = _lookBufferField?.GetValue(null)
+                    as ConsoleLib.Console.ScreenBuffer;
+                if (lookBuffer != null)
                 {
-                    _lastLookX = cx;
-                    _lastLookY = cy;
-                    _lastLookTarget = currentTarget;
+                    int cx = lookBuffer.focusPosition.x;
+                    int cy = lookBuffer.focusPosition.y;
+                    var currentTarget = Look.lookingAt;
 
-                    // Only speak if position is valid (we're in look mode)
-                    if (cx != int.MinValue)
+                    bool positionChanged = cx != _lastLookX || cy != _lastLookY;
+                    bool targetChanged = currentTarget != _lastLookTarget;
+
+                    if (positionChanged || targetChanged)
                     {
-                        string coords = $"({cx}, {cy})";
-                        if (currentTarget != null)
+                        _lastLookX = cx;
+                        _lastLookY = cy;
+                        _lastLookTarget = currentTarget;
+
+                        if (cx != int.MinValue)
                         {
-                            string colorSuffix = Speech.GetObjectColorSuffix(currentTarget);
-                            string doorState = NearbyScanner.GetDoorStateSuffix(currentTarget);
-                            string name = currentTarget.GetDisplayName(Stripped: true);
-                            string clean = Speech.Clean(name);
-                            if (!string.IsNullOrEmpty(clean))
+                            string coords = $"({cx}, {cy})";
+                            if (currentTarget != null)
                             {
-                                Speech.SayIfNew($"{clean}{doorState}{colorSuffix} {coords}");
-                                var info = Look.GenerateTooltipInformation(currentTarget);
-                                string full = info.DisplayName ?? "";
-                                if (!string.IsNullOrEmpty(info.LongDescription))
-                                    full += ". " + info.LongDescription;
-                                SetScreenContent(Speech.Clean(full));
+                                string colorSuffix = Speech.GetObjectColorSuffix(currentTarget);
+                                string doorState = NearbyScanner.GetDoorStateSuffix(currentTarget);
+                                string name = currentTarget.GetDisplayName(Stripped: true);
+                                string clean = Speech.Clean(name);
+                                if (!string.IsNullOrEmpty(clean))
+                                {
+                                    Speech.SayIfNew($"{clean}{doorState}{colorSuffix} {coords}");
+                                    var info = Look.GenerateTooltipInformation(currentTarget);
+                                    string full = info.DisplayName ?? "";
+                                    if (!string.IsNullOrEmpty(info.LongDescription))
+                                        full += ". " + info.LongDescription;
+                                    SetScreenContent(Speech.Clean(full));
+                                }
                             }
-                        }
-                        else
-                        {
-                            Speech.SayIfNew($"empty {coords}");
-                            SetScreenContent("empty");
+                            else
+                            {
+                                Speech.SayIfNew($"empty {coords}");
+                                SetScreenContent("empty");
+                            }
                         }
                     }
                 }
             }
 
-            // Pick target mode: track cursor and announce cell contents
+            // Pick target mode: track cursor and announce cell contents + AoE
             if (InPickTargetMode)
             {
                 var pickBuffer = PickTarget.Buffer;
@@ -242,20 +263,36 @@ namespace QudAccessibility
                             if (zone != null && cx >= 0 && cx < zone.Width
                                 && cy >= 0 && cy < zone.Height)
                             {
-                                var cell = zone.GetCell(cx, cy);
-                                string desc = GetCellDescription(cell);
-
-                                int dx = cx - player.CurrentCell.X;
-                                int dy = cy - player.CurrentCell.Y;
-                                int dist = System.Math.Max(
-                                    System.Math.Abs(dx), System.Math.Abs(dy));
+                                int ox = player.CurrentCell.X;
+                                int oy = player.CurrentCell.Y;
+                                int dx = cx - ox;
+                                int dy = cy - oy;
+                                int dist = Math.Max(Math.Abs(dx), Math.Abs(dy));
                                 string position = dist == 0
                                     ? "here"
                                     : dist + " " + NearbyScanner.GetCompassDirection(dx, dy);
 
-                                string msg = desc + ", " + position;
-                                Speech.SayIfNew(msg);
-                                SetScreenContent(msg);
+                                if (_pickStyle == PickTarget.PickStyle.EmptyCell)
+                                {
+                                    var cell = zone.GetCell(cx, cy);
+                                    string desc = GetCellDescription(cell);
+                                    string msg = desc + ", " + position;
+                                    Speech.SayIfNew(msg);
+                                    SetScreenContent(msg);
+                                }
+                                else
+                                {
+                                    var aoeCells = ComputeAoECells(
+                                        zone, ox, oy, cx, cy);
+                                    string shape = GetShapeDescription(
+                                        aoeCells.Count);
+                                    string creatures = BuildCreatureSummary(
+                                        aoeCells);
+                                    string msg = position + ". " + shape
+                                        + ". " + creatures;
+                                    Speech.SayIfNew(msg);
+                                    SetScreenContent(msg);
+                                }
                             }
                         }
                     }
@@ -355,6 +392,179 @@ namespace QudAccessibility
             string doorState = NearbyScanner.GetDoorStateSuffix(best);
             return name + doorState + colorSuffix;
         }
+
+        // -----------------------------------------------------------------
+        // Pick target AoE computation and block provider
+        // -----------------------------------------------------------------
+
+        /// <summary>
+        /// Compute the cells affected by the current targeting shape.
+        /// Replicates the game's AoE computation from PickTarget.ShowPicker.
+        /// </summary>
+        private static List<Cell> ComputeAoECells(
+            Zone zone, int originX, int originY, int cursorX, int cursorY)
+        {
+            var cells = new List<Cell>();
+
+            switch (_pickStyle)
+            {
+                case PickTarget.PickStyle.EmptyCell:
+                    cells.Add(zone.GetCell(cursorX, cursorY));
+                    break;
+
+                case PickTarget.PickStyle.Cone:
+                {
+                    var coneCells = XRL.Rules.Geometry.GetCone(
+                        Genkit.Location2D.Get(originX, originY),
+                        Genkit.Location2D.Get(cursorX, cursorY),
+                        _pickRange, _pickRadius);
+                    foreach (var loc in coneCells)
+                    {
+                        if (loc.X >= 0 && loc.X < zone.Width
+                            && loc.Y >= 0 && loc.Y < zone.Height)
+                            cells.Add(zone.GetCell(loc.X, loc.Y));
+                    }
+                    break;
+                }
+
+                case PickTarget.PickStyle.Line:
+                {
+                    var linePoints = new List<Point>();
+                    Zone.Line(originX, originY, cursorX, cursorY, linePoints);
+                    // Skip index 0 (the origin/player cell)
+                    for (int i = 1; i < linePoints.Count; i++)
+                    {
+                        int px = linePoints[i].X;
+                        int py = linePoints[i].Y;
+                        if (px >= 0 && px < zone.Width
+                            && py >= 0 && py < zone.Height)
+                            cells.Add(zone.GetCell(px, py));
+                    }
+                    break;
+                }
+
+                case PickTarget.PickStyle.Circle:
+                {
+                    int x1 = Math.Max(0, cursorX - _pickRadius);
+                    int x2 = Math.Min(zone.Width - 1, cursorX + _pickRadius);
+                    int y1 = Math.Max(0, cursorY - _pickRadius);
+                    int y2 = Math.Min(zone.Height - 1, cursorY + _pickRadius);
+                    for (int y = y1; y <= y2; y++)
+                    {
+                        for (int x = x1; x <= x2; x++)
+                        {
+                            if (Math.Sqrt((x - cursorX) * (x - cursorX)
+                                        + (y - cursorY) * (y - cursorY))
+                                <= _pickRadius)
+                                cells.Add(zone.GetCell(x, y));
+                        }
+                    }
+                    break;
+                }
+
+                case PickTarget.PickStyle.Burst:
+                {
+                    int x1 = Math.Max(0, cursorX - _pickRadius);
+                    int x2 = Math.Min(zone.Width - 1, cursorX + _pickRadius);
+                    int y1 = Math.Max(0, cursorY - _pickRadius);
+                    int y2 = Math.Min(zone.Height - 1, cursorY + _pickRadius);
+                    for (int y = y1; y <= y2; y++)
+                    {
+                        for (int x = x1; x <= x2; x++)
+                            cells.Add(zone.GetCell(x, y));
+                    }
+                    break;
+                }
+            }
+
+            return cells;
+        }
+
+        private static string GetShapeDescription(int cellCount)
+        {
+            switch (_pickStyle)
+            {
+                case PickTarget.PickStyle.Cone:
+                    return "Cone " + cellCount + " cells";
+                case PickTarget.PickStyle.Line:
+                    return "Line " + cellCount + " cells";
+                case PickTarget.PickStyle.Burst:
+                    return "Burst " + cellCount + " cells";
+                case PickTarget.PickStyle.Circle:
+                    return "Circle " + cellCount + " cells";
+                default:
+                    return cellCount + " cells";
+            }
+        }
+
+        /// <summary>
+        /// Build a creature summary for AoE cells, with names and positions.
+        /// </summary>
+        private static string BuildCreatureSummary(List<Cell> cells)
+        {
+            var hostile = new List<string>();
+            var friendly = new List<string>();
+            bool includesPlayer = false;
+            var player = XRL.The.Player;
+            int ox = player.CurrentCell.X;
+            int oy = player.CurrentCell.Y;
+
+            foreach (var cell in cells)
+            {
+                foreach (var obj in cell.GetObjectsInCell())
+                {
+                    if (obj == null || !obj.IsVisible())
+                        continue;
+                    if (obj == player)
+                    {
+                        includesPlayer = true;
+                        continue;
+                    }
+                    if (!obj.HasPart("Brain"))
+                        continue;
+
+                    string name = Speech.Clean(
+                        obj.GetDisplayName(Stripped: true));
+                    if (string.IsNullOrEmpty(name))
+                        continue;
+
+                    int dx = obj.CurrentCell.X - ox;
+                    int dy = obj.CurrentCell.Y - oy;
+                    int dist = Math.Max(Math.Abs(dx), Math.Abs(dy));
+                    string dir = dist == 0
+                        ? "here"
+                        : dist + " " + NearbyScanner.GetCompassDirection(dx, dy);
+
+                    if (obj.IsHostileTowards(player))
+                        hostile.Add(name + " " + dir);
+                    else
+                        friendly.Add(name + " " + dir);
+                }
+            }
+
+            var sb = new StringBuilder();
+            if (hostile.Count > 0)
+            {
+                sb.Append("Hostile: ");
+                sb.Append(string.Join(", ", hostile));
+            }
+            if (friendly.Count > 0)
+            {
+                if (sb.Length > 0) sb.Append(". ");
+                sb.Append("Friendly: ");
+                sb.Append(string.Join(", ", friendly));
+            }
+            if (includesPlayer)
+            {
+                if (sb.Length > 0) sb.Append(". ");
+                sb.Append("Includes you");
+            }
+            if (sb.Length == 0)
+                sb.Append("no creatures");
+
+            return sb.ToString();
+        }
+
 
         // -----------------------------------------------------------------
         // Default block provider: map screen HUD info

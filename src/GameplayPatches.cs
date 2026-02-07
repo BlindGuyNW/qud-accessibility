@@ -100,16 +100,25 @@ namespace QudAccessibility
 
         [HarmonyPrefix]
         [HarmonyPatch(typeof(PickTarget), nameof(PickTarget.ShowPicker))]
-        public static void PickTarget_ShowPicker_Prefix(PickStyle Style, string Label)
+        public static void PickTarget_ShowPicker_Prefix(
+            PickStyle Style, int Radius, int Range, string Label)
         {
             string styleHint;
             switch (Style)
             {
                 case PickStyle.EmptyCell: styleHint = "select a cell"; break;
-                case PickStyle.Line: styleHint = "select a target line"; break;
-                case PickStyle.Cone: styleHint = "select a target cone"; break;
-                case PickStyle.Burst: styleHint = "select a target"; break;
-                case PickStyle.Circle: styleHint = "select a target area"; break;
+                case PickStyle.Line: styleHint = "select endpoint for line"; break;
+                case PickStyle.Cone: styleHint = "aim cone direction"; break;
+                case PickStyle.Burst:
+                    styleHint = Radius > 0
+                        ? "select center, " + (Radius * 2 + 1) + " by " + (Radius * 2 + 1) + " burst"
+                        : "select a target";
+                    break;
+                case PickStyle.Circle:
+                    styleHint = Radius > 0
+                        ? "select center, radius " + Radius
+                        : "select center";
+                    break;
                 default: styleHint = "select a target"; break;
             }
 
@@ -117,7 +126,7 @@ namespace QudAccessibility
                 ? styleHint
                 : Speech.Clean(Label) + ", " + styleHint;
             Speech.Interrupt(prompt);
-            ScreenReader.EnterPickTargetMode();
+            ScreenReader.EnterPickTargetMode(Style, Radius, Range);
         }
 
         [HarmonyPostfix]
