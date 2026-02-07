@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using XRL.World.Capabilities;
 using XRL.World.Parts;
 
 namespace QudAccessibility
@@ -9,6 +10,7 @@ namespace QudAccessibility
     ///   Ctrl+PgDn/PgUp = cycle category (Hostile, Friendly, Items, Corpses, Features)
     ///   PgDn/PgUp = cycle objects in current category
     ///   Home = re-announce current object with fresh direction
+    ///   Ctrl+Home = walk to selected object via automovement
     /// </summary>
     internal static class NearbyScanner
     {
@@ -41,7 +43,9 @@ namespace QudAccessibility
                 CycleScanResult(1);
             else if (Input.GetKeyDown(KeyCode.PageUp) && !ctrl)
                 CycleScanResult(-1);
-            else if (Input.GetKeyDown(KeyCode.Home))
+            else if (Input.GetKeyDown(KeyCode.Home) && ctrl)
+                WalkToCurrentResult();
+            else if (Input.GetKeyDown(KeyCode.Home) && !ctrl)
                 AnnounceCurrentResult();
         }
 
@@ -103,6 +107,31 @@ namespace QudAccessibility
             }
 
             AnnounceEntry(_scanEntries[_scanIndex]);
+        }
+
+        // -----------------------------------------------------------------
+        // Walk to the currently selected scan result via automovement
+        // -----------------------------------------------------------------
+        private static void WalkToCurrentResult()
+        {
+            if (_scanIndex < 0 || _scanIndex >= _scanEntries.Count)
+            {
+                Speech.Interrupt("No object selected");
+                return;
+            }
+
+            var entry = _scanEntries[_scanIndex];
+            if (entry.Object?.CurrentCell == null)
+            {
+                Speech.Interrupt("Object no longer available");
+                return;
+            }
+
+            int x = entry.Object.CurrentCell.X;
+            int y = entry.Object.CurrentCell.Y;
+            Speech.Interrupt("Walking to " + entry.Name);
+            AutoAct.Setting = "M" + x + "," + y;
+            XRL.The.ActionManager.SkipPlayerTurn = true;
         }
 
         // -----------------------------------------------------------------
