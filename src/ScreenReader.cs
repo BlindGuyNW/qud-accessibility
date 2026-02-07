@@ -137,15 +137,19 @@ namespace QudAccessibility
         // Pick target mode tracking
         // -----------------------------------------------------------------
         internal static bool InPickTargetMode;
+        private static bool _useMissileBuffer;
         private static int _lastPickX = int.MinValue;
         private static int _lastPickY = int.MinValue;
         private static PickTarget.PickStyle _pickStyle;
         private static int _pickRadius;
         private static int _pickRange;
+        private static FieldInfo _missilePath;
+        private static bool _missilePathFieldResolved;
 
         internal static void EnterPickTargetMode()
         {
             InPickTargetMode = true;
+            _useMissileBuffer = false;
             _lastPickX = int.MinValue;
             _lastPickY = int.MinValue;
             _pickStyle = PickTarget.PickStyle.EmptyCell;
@@ -157,13 +161,23 @@ namespace QudAccessibility
             PickTarget.PickStyle style, int radius, int range)
         {
             InPickTargetMode = true;
+            _useMissileBuffer = false;
             _lastPickX = int.MinValue;
             _lastPickY = int.MinValue;
             _pickStyle = style;
             _pickRadius = radius;
             _pickRange = range;
-            // No block provider for targeting — creature details are included
-            // directly in the auto-announce on cursor move.
+        }
+
+        internal static void EnterMissileTargetMode(int range)
+        {
+            InPickTargetMode = true;
+            _useMissileBuffer = true;
+            _lastPickX = int.MinValue;
+            _lastPickY = int.MinValue;
+            _pickStyle = PickTarget.PickStyle.Line;
+            _pickRadius = 0;
+            _pickRange = range;
         }
 
         internal static void ExitPickTargetMode()
@@ -245,7 +259,9 @@ namespace QudAccessibility
             // Pick target mode: track cursor and announce cell contents + AoE
             if (InPickTargetMode)
             {
-                var pickBuffer = PickTarget.Buffer;
+                var pickBuffer = _useMissileBuffer
+                    ? ConsoleLib.Console.TextConsole.ScrapBuffer
+                    : PickTarget.Buffer;
                 if (pickBuffer != null)
                 {
                     int cx = pickBuffer.focusPosition.x;
@@ -272,7 +288,18 @@ namespace QudAccessibility
                                     ? "here"
                                     : dist + " " + NearbyScanner.GetCompassDirection(dx, dy);
 
-                                if (_pickStyle == PickTarget.PickStyle.EmptyCell)
+                                if (_useMissileBuffer)
+                                {
+                                    var cell = zone.GetCell(cx, cy);
+                                    string desc = GetCellDescription(cell);
+                                    string cover = GetMissileCover();
+                                    string msg = desc + ", " + position;
+                                    if (cover != null)
+                                        msg += ", " + cover;
+                                    Speech.SayIfNew(msg);
+                                    SetScreenContent(msg);
+                                }
+                                else if (_pickStyle == PickTarget.PickStyle.EmptyCell)
                                 {
                                     var cell = zone.GetCell(cx, cy);
                                     string desc = GetCellDescription(cell);
@@ -391,6 +418,38 @@ namespace QudAccessibility
             string colorSuffix = Speech.GetObjectColorSuffix(best);
             string doorState = NearbyScanner.GetDoorStateSuffix(best);
             return name + doorState + colorSuffix;
+        }
+
+        /// <summary>
+        /// Read cover percentage at the target from MissileWeapon's private
+        /// PlayerMissilePath. Returns a human-readable string like "60% cover"
+        /// or null if unavailable.
+        /// </summary>
+        private static string GetMissileCover()
+        {
+            if (!_missilePathFieldResolved)
+            {
+                _missilePath = typeof(XRL.World.Parts.MissileWeapon).GetField(
+                    "PlayerMissilePath",
+                    BindingFlags.NonPublic | BindingFlags.Static);
+                _missilePathFieldResolved = true;
+            }
+
+            if (_missilePath == null)
+                return null;
+
+            var path = _missilePath.GetValue(null) as XRL.World.Parts.MissilePath;
+            if (path?.Cover == null || path.Cover.Count == 0)
+                return null;
+
+            // Last entry in Cover corresponds to the cursor position
+            float cover = path.Cover[path.Cover.Count - 1];
+            int pct = (int)(cover * 100);
+            if (pct <= 0)
+                return "clear shot";
+            if (pct >= 100)
+                return "full cover";
+            return pct + "% cover";
         }
 
         // -----------------------------------------------------------------

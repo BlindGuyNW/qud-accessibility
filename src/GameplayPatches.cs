@@ -4,6 +4,7 @@ using XRL.Core;
 using XRL.UI;
 using XRL.World;
 using XRL.World.Capabilities;
+using XRL.World.Parts;
 using static XRL.UI.PickTarget;
 
 namespace QudAccessibility
@@ -164,6 +165,26 @@ namespace QudAccessibility
         [HarmonyPostfix]
         [HarmonyPatch(typeof(PickTarget), nameof(PickTarget.ShowFieldPicker))]
         public static void PickTarget_ShowFieldPicker_Postfix()
+        {
+            ScreenReader.ExitPickTargetMode();
+        }
+
+        // -----------------------------------------------------------------
+        // MissileWeapon.ShowPicker — announce prompt + enable cursor tracking
+        // Uses its own buffer (TextConsole.ScrapBuffer) instead of PickTarget.Buffer.
+        // -----------------------------------------------------------------
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(MissileWeapon), nameof(MissileWeapon.ShowPicker))]
+        public static void MissileWeapon_ShowPicker_Prefix(int Range)
+        {
+            Speech.Interrupt("Fire missile weapon, select a target");
+            ScreenReader.EnterMissileTargetMode(Range);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(MissileWeapon), nameof(MissileWeapon.ShowPicker))]
+        public static void MissileWeapon_ShowPicker_Postfix()
         {
             ScreenReader.ExitPickTargetMode();
         }
