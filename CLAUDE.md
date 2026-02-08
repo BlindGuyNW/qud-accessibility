@@ -39,6 +39,8 @@ All mod source lives in `src/`. The `decompiled/` directory contains ~5400 decom
 - **CharacterSheetPatches.cs** — Character sheet (StatusScreensScreen): tab name announcement and `BuildCharSheetBlocks()` F3/F4 provider for stats/points.
 - **TerminalPatches.cs** — Cybernetics/generic terminal: body + first option announcement and `BuildTerminalBlocks()` F3/F4 provider.
 - **GameSummaryPatches.cs** — Game summary (death/ending) screen: name/details announcement and `BuildGameSummaryBlocks()` F3/F4 provider.
+- **ModsPatches.cs** — Mod Manager screen: title announcement, mod selection/state vocalization (name, state, author), context button tracking, and `BuildModBlocks()` F3/F4 provider. Patches `ModManagerUI` and `ModScrollerOne` (which use `QudBaseMenuController`, not `FrameworkScroller`).
+- **ModToolkitPatches.cs** — Modding Toolkit menu: title announcement and menu item selection vocalization. Patches `ModToolkit.Show()` and `QudTextMenuController.Update()` (scoped to toolkit only).
 - **OptionsScreenPatches.cs** — Options screen: title announcement on first show and highlight tracking for F2 content.
 
 ### Key Game APIs
@@ -78,6 +80,7 @@ Providers are self-validating: they check whether their screen is still active a
 - `BuildCharSheetBlocks()` in `CharacterSheetPatches.cs` — Character/skill points, Reputation (status/rank/interests), Quests (info/steps)
 - `BuildTerminalBlocks()` in `TerminalPatches.cs` — Terminal body + options
 - `BuildGameSummaryBlocks()` in `GameSummaryPatches.cs` — Name, Details
+- `BuildModBlocks()` in `ModsPatches.cs` — Status, Author, Description, Version, Tags
 - Chargen summary uses static `SetBlocks()` in `ChargenPatches.cs`
 
 Blocks are regenerated fresh on each F3/F4 press, so data is always current.
