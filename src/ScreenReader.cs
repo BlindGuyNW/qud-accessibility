@@ -143,6 +143,7 @@ namespace QudAccessibility
         private static PickTarget.PickStyle _pickStyle;
         private static int _pickRadius;
         private static int _pickRange;
+        private static bool _isBowOrRifle;
         private static FieldInfo _missilePath;
         private static bool _missilePathFieldResolved;
 
@@ -169,7 +170,7 @@ namespace QudAccessibility
             _pickRange = range;
         }
 
-        internal static void EnterMissileTargetMode(int range)
+        internal static void EnterMissileTargetMode(int range, bool bowOrRifle)
         {
             InPickTargetMode = true;
             _useMissileBuffer = true;
@@ -178,6 +179,8 @@ namespace QudAccessibility
             _pickStyle = PickTarget.PickStyle.Line;
             _pickRadius = 0;
             _pickRange = range;
+            _isBowOrRifle = bowOrRifle;
+            SetBlockProvider(BuildMissileTargetBlocks);
         }
 
         internal static void ExitPickTargetMode()
@@ -292,10 +295,20 @@ namespace QudAccessibility
                                 {
                                     var cell = zone.GetCell(cx, cy);
                                     string desc = GetCellDescription(cell);
-                                    string cover = GetMissileCover();
                                     string msg = desc + ", " + position;
-                                    if (cover != null)
-                                        msg += ", " + cover;
+                                    if (dist > _pickRange)
+                                    {
+                                        msg += ", out of range";
+                                    }
+                                    else
+                                    {
+                                        string cover = GetMissileCover();
+                                        if (cover != null)
+                                            msg += ", " + cover;
+                                    }
+                                    string friendlies = GetFriendliesInPath();
+                                    if (friendlies != null)
+                                        msg += ", " + friendlies;
                                     Speech.SayIfNew(msg);
                                     SetScreenContent(msg);
                                 }
@@ -450,6 +463,58 @@ namespace QudAccessibility
             if (pct >= 100)
                 return "full cover";
             return pct + "% cover";
+        }
+
+        /// <summary>
+        /// Check MissilePath for friendly creatures between player and target.
+        /// Returns a warning string like "friendly in path: snapjaw" or null.
+        /// </summary>
+        private static string GetFriendliesInPath()
+        {
+            if (!_missilePathFieldResolved)
+            {
+                _missilePath = typeof(MissileWeapon).GetField(
+                    "PlayerMissilePath",
+                    BindingFlags.NonPublic | BindingFlags.Static);
+                _missilePathFieldResolved = true;
+            }
+
+            if (_missilePath == null)
+                return null;
+
+            var path = _missilePath.GetValue(null) as MissilePath;
+            if (path?.Path == null || path.Path.Count < 2)
+                return null;
+
+            var player = XRL.The.Player;
+            if (player == null)
+                return null;
+
+            var friendlyNames = new List<string>();
+            // Check cells along the path except the last (target cell)
+            for (int i = 0; i < path.Path.Count - 1; i++)
+            {
+                var cell = path.Path[i];
+                foreach (var obj in cell.GetObjectsInCell())
+                {
+                    if (obj == null || !obj.IsVisible() || obj.IsPlayer())
+                        continue;
+                    if (!obj.IsCombatObject())
+                        continue;
+                    if (!obj.IsHostileTowards(player)
+                        && !player.IsHostileTowards(obj))
+                    {
+                        string name = Speech.Clean(
+                            obj.GetDisplayName(Stripped: true));
+                        if (!string.IsNullOrEmpty(name))
+                            friendlyNames.Add(name);
+                    }
+                }
+            }
+
+            if (friendlyNames.Count == 0)
+                return null;
+            return "friendly in path: " + string.Join(", ", friendlyNames);
         }
 
         // -----------------------------------------------------------------
@@ -624,6 +689,97 @@ namespace QudAccessibility
             return sb.ToString();
         }
 
+
+        // -----------------------------------------------------------------
+        // Missile targeting block provider (F3/F4): weapon, ammo, fire modes
+        // -----------------------------------------------------------------
+        private static List<ContentBlock> BuildMissileTargetBlocks()
+        {
+            if (!InPickTargetMode || !_useMissileBuffer)
+                return null;
+
+            var player = XRL.The.Player;
+            if (player == null)
+                return null;
+
+            var blocks = new List<ContentBlock>();
+
+            // Block 1: Weapon & Ammo
+            var body = player.GetPart<Body>();
+            if (body != null)
+            {
+                var weapons = body.GetMissileWeapons();
+                if (weapons != null && weapons.Count > 0)
+                {
+                    var sb = new StringBuilder();
+                    foreach (var weapon in weapons)
+                    {
+                        if (sb.Length > 0) sb.Append("; ");
+                        string name = Speech.Clean(
+                            weapon.GetDisplayName(Stripped: true));
+                        if (!string.IsNullOrEmpty(name))
+                            sb.Append(name);
+                        else
+                            sb.Append("weapon");
+                        var loader = weapon.GetPart<MagazineAmmoLoader>();
+                        if (loader != null)
+                        {
+                            int remaining = loader.Ammo != null
+                                ? loader.Ammo.Count : 0;
+                            sb.Append(", " + remaining + " of "
+                                + loader.MaxAmmo + " loaded");
+                        }
+                    }
+                    sb.Append(". Range " + _pickRange);
+                    blocks.Add(new ContentBlock
+                    {
+                        Title = "Weapon",
+                        Body = sb.ToString()
+                    });
+                }
+            }
+
+            // Block 2: Fire Modes (rifle/bow with Draw a Bead)
+            if (_isBowOrRifle && player.HasSkill("Rifle_DrawABead"))
+            {
+                var sb = new StringBuilder();
+                sb.Append("M to mark target");
+
+                var modes = new List<string>();
+                if (player.HasSkill("Rifle_SuppressiveFire"))
+                {
+                    modes.Add("1 " + (player.HasSkill("Rifle_FlatteningFire")
+                        ? "Flattening Fire" : "Suppressive Fire"));
+                }
+                if (player.HasSkill("Rifle_WoundingFire"))
+                {
+                    modes.Add("2 " + (player.HasSkill("Rifle_DisorientingFire")
+                        ? "Disorienting Fire" : "Wounding Fire"));
+                }
+                if (player.HasSkill("Rifle_SureFire"))
+                {
+                    modes.Add("3 " + (player.HasSkill("Rifle_BeaconFire")
+                        ? "Beacon Fire" : "Sure Fire"));
+                }
+                if (player.HasSkill("Rifle_OneShot"))
+                {
+                    modes.Add("4 Ultra Fire");
+                }
+
+                if (modes.Count > 0)
+                {
+                    sb.Append(". After marking: ");
+                    sb.Append(string.Join(", ", modes));
+                }
+                blocks.Add(new ContentBlock
+                {
+                    Title = "Fire Modes",
+                    Body = sb.ToString()
+                });
+            }
+
+            return blocks;
+        }
 
         // -----------------------------------------------------------------
         // Default block provider: map screen HUD info

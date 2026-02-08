@@ -176,10 +176,38 @@ namespace QudAccessibility
 
         [HarmonyPrefix]
         [HarmonyPatch(typeof(MissileWeapon), nameof(MissileWeapon.ShowPicker))]
-        public static void MissileWeapon_ShowPicker_Prefix(int Range)
+        public static void MissileWeapon_ShowPicker_Prefix(int Range, bool BowOrRifle)
         {
-            Speech.Interrupt("Fire missile weapon, select a target");
-            ScreenReader.EnterMissileTargetMode(Range);
+            string announcement = "Fire ";
+            bool gotWeapon = false;
+            var body = XRL.The.Player?.GetPart<Body>();
+            if (body != null)
+            {
+                var weapons = body.GetMissileWeapons();
+                if (weapons != null && weapons.Count > 0)
+                {
+                    string name = Speech.Clean(
+                        weapons[0].GetDisplayName(Stripped: true));
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        announcement += name;
+                        var loader = weapons[0].GetPart<MagazineAmmoLoader>();
+                        if (loader != null)
+                        {
+                            int remaining = loader.Ammo != null
+                                ? loader.Ammo.Count : 0;
+                            announcement += ", " + remaining
+                                + " of " + loader.MaxAmmo;
+                        }
+                        gotWeapon = true;
+                    }
+                }
+            }
+            if (!gotWeapon)
+                announcement += "missile weapon";
+            announcement += ", range " + Range + ", select a target";
+            Speech.Interrupt(announcement);
+            ScreenReader.EnterMissileTargetMode(Range, BowOrRifle);
         }
 
         [HarmonyPostfix]
