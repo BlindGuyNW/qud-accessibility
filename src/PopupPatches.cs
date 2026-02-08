@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Genkit;
 using HarmonyLib;
+using Qud.UI;
 using XRL.UI;
 using XRL.World.Parts;
 
@@ -30,50 +30,21 @@ namespace QudAccessibility
         }
 
         /// <summary>
-        /// Before WaitNewPopupMessage displays, speak the title (if any) and message.
+        /// Before PopupMessage.ShowPopup renders, speak the title and message.
+        /// This is the true convergence point for ALL modern UI popup paths:
+        ///   Show() → ShowBlock() → WaitNewPopupMessage() → NewPopupMessageAsync() → ShowPopup()
+        ///   ShowAsync() → NewPopupMessageAsync() → ShowPopup()
+        ///   ShowYesNoAsync() → NewPopupMessageAsync() → ShowPopup()
+        ///   Direct NewPopupMessageAsync() calls → ShowPopup()
+        ///   Direct WaitNewPopupMessage() calls → ShowPopup()
+        /// Unlike NewPopupMessageAsync (async Task&lt;T&gt; which Harmony can't patch),
+        /// ShowPopup is a regular instance method that Harmony handles reliably.
         /// </summary>
         [HarmonyPrefix]
-        [HarmonyPatch(typeof(Popup), nameof(Popup.WaitNewPopupMessage))]
-        public static void WaitNewPopupMessage_Prefix(string message, string title)
+        [HarmonyPatch(typeof(PopupMessage), nameof(PopupMessage.ShowPopup))]
+        public static void ShowPopup_Prefix(string message, string title)
         {
             SpeakPopup(title, message);
-        }
-
-        /// <summary>
-        /// Before NewPopupMessageAsync displays, speak the title (if any) and message.
-        /// </summary>
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(Popup), nameof(Popup.NewPopupMessageAsync))]
-        public static void NewPopupMessageAsync_Prefix(string message, string title)
-        {
-            SpeakPopup(title, message);
-        }
-
-        /// <summary>
-        /// Before Popup.Show displays, speak the title (if any) and message.
-        /// </summary>
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(Popup), nameof(Popup.Show), new[] {
-            typeof(string), typeof(string), typeof(string),
-            typeof(bool), typeof(bool), typeof(bool), typeof(bool),
-            typeof(Location2D)
-        })]
-        public static void Show_Prefix(string Message, string Title)
-        {
-            SpeakPopup(Title, Message);
-        }
-
-        /// <summary>
-        /// Before Popup.ShowAsync displays, speak the message.
-        /// </summary>
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(Popup), nameof(Popup.ShowAsync), new[] {
-            typeof(string), typeof(bool), typeof(bool),
-            typeof(bool), typeof(bool), typeof(bool)
-        })]
-        public static void ShowAsync_Prefix(string Message)
-        {
-            SpeakPopup(null, Message);
         }
 
         /// <summary>
@@ -169,7 +140,11 @@ namespace QudAccessibility
             if (!string.IsNullOrEmpty(toSpeak))
             {
                 ScreenReader.SetScreenContent(toSpeak);
-                Speech.Announce(toSpeak);
+                // Interrupt cancels any pending speech — including the
+                // duplicate that ShowBlock already queued via
+                // MessageQueue.AddPlayerMessage (which fires our message
+                // log callback synchronously before this prefix runs).
+                Speech.Interrupt(toSpeak);
             }
         }
     }
