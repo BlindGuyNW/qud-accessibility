@@ -16,6 +16,10 @@ namespace QudAccessibility
     [HarmonyPatch]
     public static class ChargenPatches
     {
+        // Track the last descriptor shown to avoid repeated announcements
+        // when ResetForwardViews calls RefreshActiveWindow per forward module.
+        private static EmbarkBuilderModuleWindowDescriptor _lastShownDescriptor;
+
         /// <summary>
         /// After a character creation window is shown, announce its title.
         /// For the Summary screen, also reads all summary blocks.
@@ -24,6 +28,15 @@ namespace QudAccessibility
         [HarmonyPatch(typeof(EmbarkBuilderModuleWindowDescriptor), nameof(EmbarkBuilderModuleWindowDescriptor.show))]
         public static void Descriptor_Show_Postfix(EmbarkBuilderModuleWindowDescriptor __instance)
         {
+            // Skip if the same screen is being re-shown (RefreshActiveWindow).
+            // ResetForwardViews calls RefreshActiveWindow once per forward module,
+            // which re-shows the current screen each time. Without this guard,
+            // the breadcrumb title (e.g. "New") would be announced N times.
+            if (__instance == _lastShownDescriptor)
+                return;
+            _lastShownDescriptor = __instance;
+
+            Speech.ResetNavigation();
             string screenTitle = null;
 
             // Try breadcrumb title from the window

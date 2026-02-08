@@ -32,6 +32,7 @@ namespace QudAccessibility
         [HarmonyPatch(typeof(MainMenu), nameof(MainMenu.Show))]
         public static void MainMenu_Show_Postfix(MainMenu __instance)
         {
+            Speech.ResetNavigation();
             string first = null;
             var choices = __instance.leftScroller?.scrollContext?.data;
             if (choices != null && choices.Count > 0)

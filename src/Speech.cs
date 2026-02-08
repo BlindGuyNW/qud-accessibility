@@ -13,6 +13,7 @@ namespace QudAccessibility
     public static class Speech
     {
         private static string _lastSpoken;
+        private static string _lastNavSpoken;
         private static bool _initialized;
         private static float _priorityUntil;
 
@@ -198,6 +199,16 @@ namespace QudAccessibility
         }
 
         /// <summary>
+        /// Reset the SayIfNew dedup tracker. Call on screen transitions
+        /// so that the first scroller item is announced even if it matches
+        /// the previous screen's last navigation speech.
+        /// </summary>
+        public static void ResetNavigation()
+        {
+            _lastNavSpoken = null;
+        }
+
+        /// <summary>
         /// Strip color markup and speak the text.
         /// </summary>
         public static void Say(string text)
@@ -227,6 +238,7 @@ namespace QudAccessibility
             WindowsTTS.Stop();
             WindowsTTS.Speak(clean);
             _lastSpoken = clean;
+            _lastNavSpoken = null;
             _priorityUntil = Time.unscaledTime + clean.Length / 10f;
         }
 
@@ -234,6 +246,8 @@ namespace QudAccessibility
         /// Speak text without cancelling current speech. Used for system-initiated
         /// announcements (popups, screen titles) that should queue behind any
         /// prior speech rather than cancelling it.
+        /// Updates _lastSpoken but not _lastNavSpoken — SayIfNew has its own
+        /// dedup tracker so screen titles don't cause scroller re-announcements.
         /// Navigation speech (SayIfNew) will not interrupt until this finishes.
         /// </summary>
         public static void Announce(string text)
@@ -263,10 +277,12 @@ namespace QudAccessibility
         }
 
         /// <summary>
-        /// Only speak if the text differs from the last spoken text.
-        /// Will not interrupt priority speech (from Interrupt()/Announce())
-        /// that is still playing — prevents navigation from cutting off
-        /// popups and screen titles.
+        /// Only speak if the text differs from the last navigation speech.
+        /// Uses a separate dedup tracker (_lastNavSpoken) so that Announce()
+        /// calls (screen titles) don't reset dedup and cause re-announcement
+        /// of the same scroller item. Also checks _lastSpoken to avoid
+        /// repeating text that was just spoken by Announce/Interrupt.
+        /// Will not interrupt priority speech that is still playing.
         /// </summary>
         public static void SayIfNew(string text)
         {
@@ -274,7 +290,7 @@ namespace QudAccessibility
             if (clean == null)
                 return;
 
-            if (clean == _lastSpoken)
+            if (clean == _lastNavSpoken || clean == _lastSpoken)
                 return;
 
             EnsureInitialized();
@@ -288,6 +304,7 @@ namespace QudAccessibility
                 WindowsTTS.Stop();
                 WindowsTTS.Speak(clean);
             }
+            _lastNavSpoken = clean;
             _lastSpoken = clean;
         }
     }
