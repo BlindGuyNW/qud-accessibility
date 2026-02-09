@@ -5,6 +5,9 @@ decompiled/
 bin/
 obj/
 
+# Release zips
+*.zip
+
 # IDE
 .vs/
 *.user
