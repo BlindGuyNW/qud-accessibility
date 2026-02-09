@@ -122,6 +122,25 @@ namespace QudAccessibility
         }
 
         // -----------------------------------------------------------------
+        // Indicate direction tracking — gamepad left stick compass direction.
+        // Announces the contents of the adjacent tile being indicated.
+        // -----------------------------------------------------------------
+        private static string _lastNavDirection;
+
+        private static readonly Dictionary<string, (int dx, int dy, string name)> _dirMap
+            = new Dictionary<string, (int, int, string)>
+        {
+            { "N",  ( 0, -1, "North") },
+            { "S",  ( 0,  1, "South") },
+            { "E",  ( 1,  0, "East") },
+            { "W",  (-1,  0, "West") },
+            { "NE", ( 1, -1, "Northeast") },
+            { "NW", (-1, -1, "Northwest") },
+            { "SE", ( 1,  1, "Southeast") },
+            { "SW", (-1,  1, "Southwest") },
+        };
+
+        // -----------------------------------------------------------------
         // Look mode tracking — we track both the cursor position (via
         // reflection into Look's private Buffer) and the lookingAt object.
         // Position tracking catches empty tiles; object tracking catches
@@ -370,6 +389,30 @@ namespace QudAccessibility
                                     SetScreenContent(msg);
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // Indicate direction: announce adjacent tile contents when stick direction changes
+            if (!InLookMode && !InPickTargetMode && XRL.The.Player?.CurrentCell != null)
+            {
+                string navDir = ControlManager.ResolveAxisDirection("IndicateDirection");
+                if (navDir != _lastNavDirection)
+                {
+                    _lastNavDirection = navDir;
+                    if (navDir != null && navDir != "."
+                        && _dirMap.TryGetValue(navDir, out var dir))
+                    {
+                        var cell = XRL.The.Player.CurrentCell;
+                        var zone = cell.ParentZone;
+                        int tx = cell.X + dir.dx;
+                        int ty = cell.Y + dir.dy;
+                        if (zone != null && tx >= 0 && tx < zone.Width
+                            && ty >= 0 && ty < zone.Height)
+                        {
+                            string desc = GetCellDescription(zone.GetCell(tx, ty));
+                            Speech.SayIfNew(dir.name + ", " + desc);
                         }
                     }
                 }
