@@ -7,13 +7,16 @@ namespace QudAccessibility
 {
     /// <summary>
     /// Harmony patches for the Options screen: title announcement on first
-    /// show and highlight tracking for F2 content.
+    /// show and highlight tracking for F2 content. Also vocalizes the search
+    /// bar and Advanced checkbox which live outside the main scroller.
     /// </summary>
     [HarmonyPatch]
     public static class OptionsScreenPatches
     {
         private static bool _optionsFirstShow;
         private static FieldInfo _optionsSelectFirstField;
+        private static NavigationContext _lastOptionsContext;
+        private static bool? _lastAdvancedValue;
 
         [HarmonyPrefix]
         [HarmonyPatch(typeof(OptionsScreen), nameof(OptionsScreen.Show))]
@@ -60,6 +63,63 @@ namespace QudAccessibility
                     content += ". " + Speech.Clean(optRow.HelpText);
                 ScreenReader.SetScreenContent(content);
             }
+        }
+
+        /// <summary>
+        /// Detect when focus enters the search bar or Advanced checkbox, which
+        /// are separate navigation contexts outside the main options scroller.
+        /// Also re-announces the Advanced checkbox when its value is toggled.
+        /// </summary>
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(OptionsScreen), nameof(OptionsScreen.Update))]
+        public static void OptionsScreen_Update_Postfix(OptionsScreen __instance)
+        {
+            if (!__instance.globalContext.IsActive())
+            {
+                _lastOptionsContext = null;
+                _lastAdvancedValue = null;
+                return;
+            }
+
+            var active = NavigationController.instance.activeContext;
+            if (active == null)
+                return;
+
+            bool contextChanged = active != _lastOptionsContext;
+            _lastOptionsContext = active;
+
+            // Search bar: lives in topHorizNav as a SearchContext
+            if (__instance.searchInput.context.IsActive())
+            {
+                if (contextChanged)
+                {
+                    string text = __instance.searchInput.SearchText;
+                    string label = string.IsNullOrWhiteSpace(text)
+                        ? "Search"
+                        : "Search, " + text;
+                    ScreenReader.SetScreenContent(label);
+                    Speech.SayIfNew(label);
+                }
+                return;
+            }
+
+            // Advanced checkbox: removed from scroller, rendered standalone
+            if (__instance.advancedOptionsCheck != null
+                && __instance.advancedOptionsScrollProxy.IsActive())
+            {
+                bool currentValue = __instance.advancedOptionsCheck.Value;
+                if (contextChanged || _lastAdvancedValue != currentValue)
+                {
+                    _lastAdvancedValue = currentValue;
+                    string label = ScrollerPatches.GetElementLabel(
+                        __instance.advancedOptionsCheck);
+                    ScreenReader.SetScreenContent(label);
+                    Speech.SayIfNew(label);
+                }
+                return;
+            }
+
+            _lastAdvancedValue = null;
         }
     }
 }
