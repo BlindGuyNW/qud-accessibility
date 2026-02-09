@@ -241,12 +241,48 @@ namespace QudAccessibility
                                 string clean = Speech.Clean(name);
                                 if (!string.IsNullOrEmpty(clean))
                                 {
-                                    Speech.SayIfNew($"{clean}{doorState}{colorSuffix} {coords}");
                                     var info = Look.GenerateTooltipInformation(currentTarget);
-                                    string full = info.DisplayName ?? "";
+
+                                    // Extract creature status from tooltip
+                                    string feeling = Speech.Clean(info.FeelingText);
+                                    string difficulty = Speech.Clean(info.DifficultyText);
+                                    string wound = Speech.Clean(info.WoundLevel);
+                                    // Scanning WoundLevel uses CP437 icons:
+                                    // \u0004 (diamond) = AV, \t (tab) = DV
+                                    if (wound != null)
+                                        wound = wound.Replace("\u0004", "AV ").Replace("\t", " DV ");
+
+                                    // Speak: name, feeling, difficulty, health, coords
+                                    var spoken = new StringBuilder(clean);
+                                    spoken.Append(doorState);
+                                    spoken.Append(colorSuffix);
+                                    if (!string.IsNullOrEmpty(feeling))
+                                        spoken.Append(", ").Append(feeling);
+                                    if (!string.IsNullOrEmpty(difficulty))
+                                        spoken.Append(", ").Append(difficulty);
+                                    if (!string.IsNullOrEmpty(wound))
+                                        spoken.Append(", ").Append(wound);
+                                    spoken.Append(' ').Append(coords);
+                                    Speech.SayIfNew(spoken.ToString());
+
+                                    // F2 content: full details
+                                    var full = new StringBuilder();
+                                    full.Append(Speech.Clean(info.DisplayName ?? ""));
+                                    if (!string.IsNullOrEmpty(feeling) || !string.IsNullOrEmpty(difficulty))
+                                    {
+                                        full.Append(". ");
+                                        if (!string.IsNullOrEmpty(feeling))
+                                            full.Append(feeling);
+                                        if (!string.IsNullOrEmpty(feeling) && !string.IsNullOrEmpty(difficulty))
+                                            full.Append(", ");
+                                        if (!string.IsNullOrEmpty(difficulty))
+                                            full.Append(difficulty);
+                                    }
+                                    if (!string.IsNullOrEmpty(wound))
+                                        full.Append(". ").Append(wound);
                                     if (!string.IsNullOrEmpty(info.LongDescription))
-                                        full += ". " + info.LongDescription;
-                                    SetScreenContent(Speech.Clean(full));
+                                        full.Append(". ").Append(Speech.Clean(info.LongDescription));
+                                    SetScreenContent(full.ToString());
                                 }
                             }
                             else
