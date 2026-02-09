@@ -141,7 +141,7 @@ namespace QudAccessibility
 
             if (!string.IsNullOrEmpty(toSpeak))
             {
-                Speech.SayIfNew(toSpeak);
+                Speech.SayIfNew(toSpeak, pos);
             }
         }
 

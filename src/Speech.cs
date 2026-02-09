@@ -14,6 +14,7 @@ namespace QudAccessibility
     {
         private static string _lastSpoken;
         private static string _lastNavSpoken;
+        private static int _lastNavPosition = -1;
         private static bool _initialized;
         private static float _priorityUntil;
 
@@ -212,6 +213,7 @@ namespace QudAccessibility
         public static void ResetNavigation()
         {
             _lastNavSpoken = null;
+            _lastNavPosition = -1;
         }
 
         /// <summary>
@@ -245,6 +247,7 @@ namespace QudAccessibility
             WindowsTTS.Speak(clean);
             _lastSpoken = clean;
             _lastNavSpoken = null;
+            _lastNavPosition = -1;
             _priorityUntil = Time.unscaledTime + clean.Length / 10f;
         }
 
@@ -289,14 +292,17 @@ namespace QudAccessibility
         /// of the same scroller item. Also checks _lastSpoken to avoid
         /// repeating text that was just spoken by Announce/Interrupt.
         /// Will not interrupt priority speech that is still playing.
+        /// Pass position when available so that identical adjacent items
+        /// (e.g. two waterskins) are still announced on navigation.
         /// </summary>
-        public static void SayIfNew(string text)
+        public static void SayIfNew(string text, int position = -1)
         {
             string clean = Clean(text);
             if (clean == null)
                 return;
 
-            if (clean == _lastNavSpoken || clean == _lastSpoken)
+            bool positionChanged = position >= 0 && position != _lastNavPosition;
+            if (!positionChanged && (clean == _lastNavSpoken || clean == _lastSpoken))
                 return;
 
             EnsureInitialized();
@@ -311,6 +317,7 @@ namespace QudAccessibility
                 WindowsTTS.Speak(clean);
             }
             _lastNavSpoken = clean;
+            _lastNavPosition = position;
             _lastSpoken = clean;
         }
     }

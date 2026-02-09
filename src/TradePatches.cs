@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using HarmonyLib;
@@ -23,6 +24,8 @@ namespace QudAccessibility
         private static int _lastSide = -1;
         private static XRL.World.GameObject _lastTrackedGo;
         private static int _lastTrackedCount = -1;
+        private static NavigationContext _lastTradeContext;
+        private static TradeScreen.SortMode? _lastSortMode;
 
         /// <summary>
         /// Reset tracking state when a new trade session begins.
@@ -36,6 +39,8 @@ namespace QudAccessibility
             _lastSide = -1;
             _lastTrackedGo = null;
             _lastTrackedCount = -1;
+            _lastTradeContext = null;
+            _lastSortMode = null;
             ScreenReader.SetBlockProvider(BuildTradeBlocks);
         }
 
@@ -76,7 +81,10 @@ namespace QudAccessibility
         public static void TradeScreen_Update_Postfix(TradeScreen __instance)
         {
             if (__instance.navigationContext == null || !__instance.navigationContext.IsActive())
+            {
+                _lastTradeContext = null;
                 return;
+            }
 
             if (__instance.scrollerControllers == null)
                 return;
@@ -106,6 +114,40 @@ namespace QudAccessibility
 
                 Speech.Announce(announcement);
                 return;
+            }
+
+            // Track navigation context changes (for search input focus detection)
+            var active = NavigationController.instance?.activeContext;
+            bool contextChanged = active != null && active != _lastTradeContext;
+            _lastTradeContext = active;
+
+            // Search input focus
+            if (__instance.searchInput.context.IsActive()
+                || (__instance.filterBar != null && __instance.filterBar.searchInput.context.IsActive()))
+            {
+                if (contextChanged)
+                {
+                    string text = __instance.searchInput.SearchText;
+                    string label = string.IsNullOrWhiteSpace(text)
+                        ? "Search"
+                        : "Search, " + text;
+                    ScreenReader.SetScreenContent(label);
+                    Speech.SayIfNew(label);
+                }
+                return;
+            }
+
+            // Sort mode change
+            if (__instance.sortMode != _lastSortMode)
+            {
+                if (_lastSortMode.HasValue)
+                {
+                    string sortLabel = __instance.sortMode == TradeScreen.SortMode.AZ
+                        ? "Sort by A to Z"
+                        : "Sort by category";
+                    Speech.Interrupt(sortLabel);
+                }
+                _lastSortMode = __instance.sortMode;
             }
 
             // Column (side) switch
@@ -207,7 +249,42 @@ namespace QudAccessibility
             }
             blocks.Add(new ScreenReader.ContentBlock { Title = "Trade Summary", Body = sumSb.ToString() });
 
-            // Block 2: Commands
+            // Block 2: Weight
+            if (XRL.The.Player != null)
+            {
+                int carriedWeight = XRL.The.Player.GetCarriedWeight();
+                int maxCarriedWeight = XRL.The.Player.GetMaxCarriedWeight();
+                int tradeDelta = instance.Weight[0] - instance.Weight[1];
+                if (instance.mode == TradeUI.TradeScreenMode.Trade)
+                {
+                    int dramWeight = (int)(XRL.World.Parts.LiquidVolume.GetLiquid("water").Weight
+                        * (double)TradeUI.CalculateTrade(instance.Totals[0], instance.Totals[1]));
+                    tradeDelta -= dramWeight;
+                }
+                int projected = Math.Max(0, carriedWeight + tradeDelta);
+                blocks.Add(new ScreenReader.ContentBlock
+                {
+                    Title = "Weight",
+                    Body = projected + " of " + maxCarriedWeight + " lbs"
+                        + (projected > maxCarriedWeight ? ", overburdened" : "")
+                });
+            }
+
+            // Block 3: Sort and filter
+            {
+                string sortLabel = instance.sortMode == TradeScreen.SortMode.AZ
+                    ? "A to Z" : "Category";
+                string filterText = instance.searchInput?.SearchText;
+                string filterLabel = string.IsNullOrWhiteSpace(filterText)
+                    ? "All" : filterText;
+                blocks.Add(new ScreenReader.ContentBlock
+                {
+                    Title = "Sort and Filter",
+                    Body = "Sort by " + sortLabel + ". Filter: " + filterLabel
+                });
+            }
+
+            // Block 4: Commands
             var cmdSb = new StringBuilder();
             AppendCommand(cmdSb, "CmdTradeOffer", "offer trade");
             AppendCommand(cmdSb, "CmdTradeAdd", "add one");

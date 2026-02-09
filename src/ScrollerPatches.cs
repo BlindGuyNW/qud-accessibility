@@ -77,7 +77,7 @@ namespace QudAccessibility
             string label = GetElementLabel(data[pos]);
             if (!string.IsNullOrEmpty(label))
             {
-                Speech.SayIfNew(label);
+                Speech.SayIfNew(label, pos);
             }
 
             // Update F2 screen content for reputation and quests screens
@@ -224,7 +224,7 @@ namespace QudAccessibility
             string label = GetElementLabel(data[pos]);
             if (!string.IsNullOrEmpty(label))
             {
-                Speech.SayIfNew(label);
+                Speech.SayIfNew(label, pos);
             }
         }
 
@@ -441,7 +441,10 @@ namespace QudAccessibility
 
             if (element is FilterBarCategoryButtonData filterCatData)
             {
-                return filterCatData.category == "*All" ? "All" : filterCatData.category;
+                string catLabel = filterCatData.category == "*All" ? "All" : filterCatData.category;
+                if (filterCatData.button != null)
+                    catLabel += filterCatData.button.categoryEnabled ? ", enabled" : ", disabled";
+                return catLabel;
             }
 
             if (element is AbilityManagerLineData abilData)
