@@ -82,17 +82,17 @@ namespace QudAccessibility
             return sb.ToString().Trim();
         }
 
-        // Cached command keys sorted by length (longest first) for ~ substitution
+        // Cached command keys sorted by length (longest first) for ~/% substitution
         private static List<string> _commandKeys;
 
         /// <summary>
-        /// Replace ~CmdFoo markers with actual key binding names.
-        /// The game uses this pattern in help text, tutorials, and tooltips.
-        /// Mirrors HelpRow.setData() substitution logic.
+        /// Replace ~CmdFoo and %CmdFoo markers with actual key binding names.
+        /// The game uses ~ for primary binding and % for all bindings;
+        /// for TTS we resolve both the same way.
         /// </summary>
         private static string ResolveCommands(string text)
         {
-            if (text == null || !text.Contains("~"))
+            if (text == null || (!text.Contains("~") && !text.Contains("%")))
                 return text;
 
             // Handle ~Highlight specially (Alt key indicator)
@@ -104,7 +104,7 @@ namespace QudAccessibility
                     text = text.Replace("~Highlight", "");
             }
 
-            if (!text.Contains("~"))
+            if (!text.Contains("~") && !text.Contains("%"))
                 return text;
 
             // Build sorted key list on first use
@@ -120,14 +120,20 @@ namespace QudAccessibility
             for (int i = 0; i < _commandKeys.Count; i++)
             {
                 string key = _commandKeys[i];
-                string marker = "~" + key;
-                if (text.Contains(marker))
+                string tildeMarker = "~" + key;
+                string pctMarker = "%" + key;
+                if (text.Contains(tildeMarker))
                 {
                     string binding = ControlManager.getCommandInputDescription(key, mapGlyphs: false);
-                    text = text.Replace(marker, binding ?? key);
-                    if (!text.Contains("~"))
-                        break;
+                    text = text.Replace(tildeMarker, binding ?? key);
                 }
+                if (text.Contains(pctMarker))
+                {
+                    string binding = ControlManager.getCommandInputDescription(key, mapGlyphs: false);
+                    text = text.Replace(pctMarker, binding ?? key);
+                }
+                if (!text.Contains("~") && !text.Contains("%"))
+                    break;
             }
 
             return text;
