@@ -4,7 +4,7 @@ using System.Text;
 using HarmonyLib;
 using Qud.UI;
 using XRL.UI;
-using XRL.UI.Framework;
+
 
 namespace QudAccessibility
 {
@@ -24,7 +24,6 @@ namespace QudAccessibility
         private static int _lastSide = -1;
         private static XRL.World.GameObject _lastTrackedGo;
         private static int _lastTrackedCount = -1;
-        private static NavigationContext _lastTradeContext;
         private static TradeScreen.SortMode? _lastSortMode;
 
         /// <summary>
@@ -39,7 +38,6 @@ namespace QudAccessibility
             _lastSide = -1;
             _lastTrackedGo = null;
             _lastTrackedCount = -1;
-            _lastTradeContext = null;
             _lastSortMode = null;
             ScreenReader.SetBlockProvider(BuildTradeBlocks);
         }
@@ -81,10 +79,7 @@ namespace QudAccessibility
         public static void TradeScreen_Update_Postfix(TradeScreen __instance)
         {
             if (__instance.navigationContext == null || !__instance.navigationContext.IsActive())
-            {
-                _lastTradeContext = null;
                 return;
-            }
 
             if (__instance.scrollerControllers == null)
                 return;
@@ -116,26 +111,7 @@ namespace QudAccessibility
                 return;
             }
 
-            // Track navigation context changes (for search input focus detection)
-            var active = NavigationController.instance?.activeContext;
-            bool contextChanged = active != null && active != _lastTradeContext;
-            _lastTradeContext = active;
-
-            // Search input focus
-            if (__instance.searchInput.context.IsActive()
-                || (__instance.filterBar != null && __instance.filterBar.searchInput.context.IsActive()))
-            {
-                if (contextChanged)
-                {
-                    string text = __instance.searchInput.SearchText;
-                    string label = string.IsNullOrWhiteSpace(text)
-                        ? "Search"
-                        : "Search, " + text;
-                    ScreenReader.SetScreenContent(label);
-                    Speech.SayIfNew(label);
-                }
-                return;
-            }
+            // Search bar is handled by the universal FrameworkSearchInput patch.
 
             // Sort mode change
             if (__instance.sortMode != _lastSortMode)

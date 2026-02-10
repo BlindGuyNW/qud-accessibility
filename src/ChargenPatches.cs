@@ -134,7 +134,8 @@ namespace QudAccessibility
             string description = element.Description;
 
             string toSpeak = label ?? "";
-            if (!string.IsNullOrEmpty(description) && description != label)
+            if (!string.IsNullOrEmpty(description) && description != label
+                && !toSpeak.Contains(description))
             {
                 toSpeak += ". " + description;
             }

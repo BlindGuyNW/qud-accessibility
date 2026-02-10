@@ -243,6 +243,24 @@ namespace QudAccessibility
         }
 
         /// <summary>
+        /// Universal search input vocalization. Fires every frame for every
+        /// FrameworkSearchInput; SayIfNew deduplicates so it only speaks on
+        /// focus enter or text change. Covers all screens (options, trade,
+        /// character sheet, etc.) without per-screen patches.
+        /// </summary>
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(FrameworkSearchInput), nameof(FrameworkSearchInput.Update))]
+        public static void SearchInput_Update_Postfix(FrameworkSearchInput __instance)
+        {
+            if (!__instance.context.IsActive())
+                return;
+            string text = __instance.SearchText;
+            string label = string.IsNullOrWhiteSpace(text) ? "Search" : "Search, " + text;
+            ScreenReader.SetScreenContent(label);
+            Speech.SayIfNew(label);
+        }
+
+        /// <summary>
         /// Extract a human-readable label from any FrameworkDataElement subclass.
         /// </summary>
         internal static string GetElementLabel(FrameworkDataElement element)
@@ -431,6 +449,9 @@ namespace QudAccessibility
 
             if (element is MenuOption menuOption)
             {
+                string keyDesc = menuOption.getKeyDescription();
+                if (!string.IsNullOrEmpty(keyDesc))
+                    return Speech.Clean(keyDesc) + ": " + menuOption.Description;
                 return menuOption.Description;
             }
 

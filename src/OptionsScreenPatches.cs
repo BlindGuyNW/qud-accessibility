@@ -66,9 +66,10 @@ namespace QudAccessibility
         }
 
         /// <summary>
-        /// Detect when focus enters the search bar or Advanced checkbox, which
-        /// are separate navigation contexts outside the main options scroller.
-        /// Also re-announces the Advanced checkbox when its value is toggled.
+        /// Detect when focus enters the Advanced checkbox, which is a separate
+        /// navigation context outside the main options scroller.
+        /// Re-announces when its value is toggled.
+        /// Search bar is handled by the universal FrameworkSearchInput patch.
         /// </summary>
         [HarmonyPostfix]
         [HarmonyPatch(typeof(OptionsScreen), nameof(OptionsScreen.Update))]
@@ -87,21 +88,6 @@ namespace QudAccessibility
 
             bool contextChanged = active != _lastOptionsContext;
             _lastOptionsContext = active;
-
-            // Search bar: lives in topHorizNav as a SearchContext
-            if (__instance.searchInput.context.IsActive())
-            {
-                if (contextChanged)
-                {
-                    string text = __instance.searchInput.SearchText;
-                    string label = string.IsNullOrWhiteSpace(text)
-                        ? "Search"
-                        : "Search, " + text;
-                    ScreenReader.SetScreenContent(label);
-                    Speech.SayIfNew(label);
-                }
-                return;
-            }
 
             // Advanced checkbox: removed from scroller, rendered standalone
             if (__instance.advancedOptionsCheck != null
