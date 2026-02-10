@@ -260,26 +260,7 @@ namespace QudAccessibility
                 });
             }
 
-            // Block 4: Commands
-            var cmdSb = new StringBuilder();
-            AppendCommand(cmdSb, "CmdTradeOffer", "offer trade");
-            AppendCommand(cmdSb, "CmdTradeAdd", "add one");
-            AppendCommand(cmdSb, "CmdTradeRemove", "remove one");
-            AppendCommand(cmdSb, "CmdTradeAllItems", "toggle item");
-            AppendCommand(cmdSb, "CmdVendorActions", "vendor actions");
-            AppendCommand(cmdSb, "Cancel", "close");
-            blocks.Add(new ScreenReader.ContentBlock { Title = "Commands", Body = cmdSb.ToString() });
-
             return blocks;
-        }
-
-        private static void AppendCommand(StringBuilder sb, string command, string label)
-        {
-            string key = ControlManager.getCommandInputDescription(command, mapGlyphs: false);
-            if (string.IsNullOrEmpty(key))
-                return;
-            if (sb.Length > 0) sb.Append(", ");
-            sb.Append(key + " " + label);
         }
     }
 }

@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
+using Qud.UI;
 using UnityEngine;
 using XRL.Messages;
 using XRL.Rules;
 using XRL.UI;
+using XRL.UI.Framework;
 using XRL.World;
 using XRL.World.Parts;
 
@@ -34,6 +36,12 @@ namespace QudAccessibility
         // Dynamic block providers — screen-specific and fallback (map)
         private static Func<List<ContentBlock>> _blockProvider;
         private static Func<List<ContentBlock>> _defaultProvider;
+
+        // Cached reflection for hotkeyBar scroller field per window type
+        private static readonly Dictionary<Type, FieldInfo> _hotkeyBarFieldCache
+            = new Dictionary<Type, FieldInfo>();
+        private static readonly string[] _hotkeyBarFieldNames =
+            { "hotkeyBar", "HotkeyBar", "menuOptionScroller" };
 
         public struct ContentBlock
         {
@@ -452,6 +460,16 @@ namespace QudAccessibility
             if (activeBlocks == null && _defaultProvider != null)
                 activeBlocks = _defaultProvider();
 
+            // Append hotkeyBar commands block if available
+            var hotkeyBlock = BuildHotkeyBarBlock();
+            if (hotkeyBlock.HasValue)
+            {
+                if (activeBlocks != null)
+                    activeBlocks = new List<ContentBlock>(activeBlocks) { hotkeyBlock.Value };
+                else
+                    activeBlocks = new List<ContentBlock> { hotkeyBlock.Value };
+            }
+
             if (activeBlocks == null || activeBlocks.Count == 0)
                 return;
 
@@ -464,6 +482,77 @@ namespace QudAccessibility
             string text = activeBlocks[_blockIndex].ToSpeech();
             if (!string.IsNullOrEmpty(text))
                 Speech.Interrupt(text);
+        }
+
+        /// <summary>
+        /// Build a Commands block from the active screen's hotkey bar.
+        /// Tries the hotkeyBar scroller first (complete data), falls back to
+        /// NavigationController.GetMenuOptions() for screens without a known scroller.
+        /// </summary>
+        private static ContentBlock? BuildHotkeyBarBlock()
+        {
+            IEnumerable<FrameworkDataElement> options = GetHotkeyBarScrollerData();
+            if (options == null && NavigationController.instance != null)
+                options = NavigationController.GetMenuOptions();
+            if (options == null)
+                return null;
+
+            var sb = new StringBuilder();
+            foreach (var element in options)
+            {
+                var opt = element as MenuOption;
+                if (opt == null)
+                    continue;
+                if (string.IsNullOrEmpty(opt.InputCommand))
+                    continue;
+                if (opt.InputCommand == "NavigationXYAxis")
+                    continue;
+                if (string.IsNullOrEmpty(opt.Description))
+                    continue;
+
+                string key = ControlManager.getCommandInputDescription(
+                    opt.InputCommand, mapGlyphs: false);
+                if (string.IsNullOrEmpty(key))
+                    continue;
+
+                if (sb.Length > 0) sb.Append(", ");
+                sb.Append(key).Append(": ").Append(Speech.Clean(opt.Description));
+            }
+
+            if (sb.Length == 0)
+                return null;
+
+            return new ContentBlock { Title = "Commands", Body = sb.ToString() };
+        }
+
+        /// <summary>
+        /// Try to read the hotkeyBar scroller data from UIManager.currentWindow
+        /// via cached reflection. Returns null if no scroller found.
+        /// </summary>
+        private static List<FrameworkDataElement> GetHotkeyBarScrollerData()
+        {
+            var window = UIManager.instance?.currentWindow;
+            if (window == null)
+                return null;
+
+            var windowType = window.GetType();
+            if (!_hotkeyBarFieldCache.TryGetValue(windowType, out var field))
+            {
+                foreach (var name in _hotkeyBarFieldNames)
+                {
+                    field = windowType.GetField(name,
+                        BindingFlags.Public | BindingFlags.Instance);
+                    if (field != null) break;
+                }
+                _hotkeyBarFieldCache[windowType] = field;
+            }
+
+            if (field == null)
+                return null;
+
+            var scroller = field.GetValue(window) as FrameworkScroller;
+            var data = scroller?.scrollContext?.data;
+            return (data != null && data.Count > 0) ? data : null;
         }
 
         /// <summary>
