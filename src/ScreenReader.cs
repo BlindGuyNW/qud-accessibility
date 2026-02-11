@@ -960,20 +960,42 @@ namespace QudAccessibility
 
             var blocks = new List<ContentBlock>();
 
-            // Block 1: Stats
-            var statsSb = new StringBuilder();
-            statsSb.Append("HP " + player.hitpoints + "/" + player.baseHitpoints);
+            // Block 1: Combat
+            var combatSb = new StringBuilder();
+            combatSb.Append("HP " + player.hitpoints + "/" + player.baseHitpoints);
             var avStat = player.Statistics.ContainsKey("AV") ? player.Statistics["AV"] : null;
             if (avStat != null)
-                statsSb.Append(", AV " + Stats.GetCombatAV(player));
-            statsSb.Append(", DV " + Stats.GetCombatDV(player));
-            statsSb.Append(", MA " + Stats.GetCombatMA(player));
-            statsSb.Append(", Quickness " + player.Speed);
+                combatSb.Append(", AV " + Stats.GetCombatAV(player));
+            combatSb.Append(", DV " + Stats.GetCombatDV(player));
+            combatSb.Append(", MA " + Stats.GetCombatMA(player));
+            combatSb.Append(", Quickness " + player.Speed);
             var msStatObj = player.Statistics.ContainsKey("MoveSpeed") ? player.Statistics["MoveSpeed"] : null;
             if (msStatObj != null)
-                statsSb.Append(", Move Speed " + (200 - msStatObj.Value));
-            statsSb.Append(", Weight " + player.GetCarriedWeight() + "/" + player.GetMaxCarriedWeight());
-            blocks.Add(new ContentBlock { Title = "Stats", Body = statsSb.ToString() });
+                combatSb.Append(", Move Speed " + (200 - msStatObj.Value));
+            combatSb.Append(", Weight " + player.GetCarriedWeight() + "/" + player.GetMaxCarriedWeight());
+            combatSb.Append(", " + player.GetFreeDrams() + " drams of fresh water");
+            blocks.Add(new ContentBlock { Title = "Combat", Body = combatSb.ToString() });
+
+            // Block 2: Character
+            var charSb = new StringBuilder();
+            var levelStat = player.Statistics.ContainsKey("Level") ? player.Statistics["Level"] : null;
+            var xpStat = player.Statistics.ContainsKey("XP") ? player.Statistics["XP"] : null;
+            if (levelStat != null)
+            {
+                charSb.Append("Level " + levelStat.Value);
+                if (xpStat != null)
+                    charSb.Append(", XP " + xpStat.Value + "/" + Leveler.GetXPForLevel(levelStat.Value + 1));
+            }
+            string[] attrNames = { "Strength", "Agility", "Toughness", "Willpower", "Intelligence", "Ego" };
+            foreach (var attr in attrNames)
+            {
+                if (player.Statistics.ContainsKey(attr))
+                {
+                    if (charSb.Length > 0) charSb.Append(", ");
+                    charSb.Append(attr + " " + player.Statistics[attr].Value);
+                }
+            }
+            blocks.Add(new ContentBlock { Title = "Character", Body = charSb.ToString() });
 
             // Block 2: Condition
             var condSb = new StringBuilder();
