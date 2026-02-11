@@ -463,8 +463,8 @@ namespace QudAccessibility
             if (element is FilterBarCategoryButtonData filterCatData)
             {
                 string catLabel = filterCatData.category == "*All" ? "All" : filterCatData.category;
-                if (filterCatData.button != null)
-                    catLabel += filterCatData.button.categoryEnabled ? ", enabled" : ", disabled";
+                if (filterCatData.button != null && filterCatData.button.categoryEnabled)
+                    catLabel += ", selected";
                 return catLabel;
             }
 
