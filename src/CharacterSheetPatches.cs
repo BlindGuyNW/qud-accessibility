@@ -195,6 +195,25 @@ namespace QudAccessibility
                 return blocks;
             }
 
+            if (activeScreen is InventoryAndEquipmentStatusScreen eqScreen)
+            {
+                var blocks = new List<ScreenReader.ContentBlock>();
+
+                string mode = eqScreen.showCybernetics ? "cybernetics" : "equipment";
+                string toggleKey = ControlManager.getCommandInputDescription(
+                    "Toggle", mapGlyphs: false);
+                if (!string.IsNullOrEmpty(toggleKey))
+                {
+                    blocks.Add(new ScreenReader.ContentBlock
+                    {
+                        Title = "View Mode",
+                        Body = "Showing " + mode + ". " + toggleKey + ": toggle"
+                    });
+                }
+
+                return blocks;
+            }
+
             // Other tabs: return empty list to prevent falling through to map blocks
             return new List<ScreenReader.ContentBlock>();
         }
