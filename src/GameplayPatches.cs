@@ -21,7 +21,7 @@ namespace QudAccessibility
     {
         /// <summary>
         /// Track when Look mode starts so the scanner keys don't fire
-        /// while PgUp/PgDn are used for description scrolling.
+        /// while [/] are used for description scrolling.
         /// ShowLooker is a blocking loop, so prefix fires at entry
         /// and postfix fires when the user exits look mode.
         /// </summary>

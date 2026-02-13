@@ -9,10 +9,10 @@ namespace QudAccessibility
 {
     /// <summary>
     /// Nearby object scanner for the map screen.
-    ///   Ctrl+PgDn/PgUp = cycle category (Hostile, Friendly, Items, Corpses, Features, Unexplored)
-    ///   PgDn/PgUp = cycle objects in current category
-    ///   Home = re-announce current object with fresh direction
-    ///   Ctrl+Home = walk to selected object via automovement
+    ///   Ctrl+] / Ctrl+[ = cycle category (Hostile, Friendly, Items, Corpses, Features, Unexplored)
+    ///   ] / [ = cycle objects in current category
+    ///   \ = re-announce current object with fresh direction
+    ///   Ctrl+\ = walk to selected object via automovement
     /// </summary>
     internal static class NearbyScanner
     {
@@ -40,17 +40,17 @@ namespace QudAccessibility
             bool ctrl = Input.GetKey(KeyCode.LeftControl)
                      || Input.GetKey(KeyCode.RightControl);
 
-            if (Input.GetKeyDown(KeyCode.PageDown) && ctrl)
+            if (Input.GetKeyDown(KeyCode.RightBracket) && ctrl)
                 CycleCategory(1);
-            else if (Input.GetKeyDown(KeyCode.PageUp) && ctrl)
+            else if (Input.GetKeyDown(KeyCode.LeftBracket) && ctrl)
                 CycleCategory(-1);
-            else if (Input.GetKeyDown(KeyCode.PageDown) && !ctrl)
+            else if (Input.GetKeyDown(KeyCode.RightBracket) && !ctrl)
                 CycleScanResult(1);
-            else if (Input.GetKeyDown(KeyCode.PageUp) && !ctrl)
+            else if (Input.GetKeyDown(KeyCode.LeftBracket) && !ctrl)
                 CycleScanResult(-1);
-            else if (Input.GetKeyDown(KeyCode.Home) && ctrl)
+            else if (Input.GetKeyDown(KeyCode.Backslash) && ctrl)
                 WalkToCurrentResult();
-            else if (Input.GetKeyDown(KeyCode.Home) && !ctrl)
+            else if (Input.GetKeyDown(KeyCode.Backslash) && !ctrl)
                 AnnounceCurrentResult();
         }
 

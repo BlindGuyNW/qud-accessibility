@@ -19,7 +19,7 @@ namespace QudAccessibility
     ///   F3 = next content block / F4 = previous content block
     ///   Look mode cursor tracking (speaks objects + "empty")
     ///   Pick target mode cursor tracking
-    /// Dispatches to NearbyScanner for PgUp/PgDn/Home on the map screen.
+    /// Dispatches to NearbyScanner for [/]/\ on the map screen.
     /// Created lazily by Speech.EnsureInitialized().
     /// </summary>
     public class ScreenReader : MonoBehaviour
